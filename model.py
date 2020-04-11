@@ -22,11 +22,11 @@ class GCN(nn.Module):
         # @param x : the graph attribute in a batch form
         assert graph_conv_filters.shape[-2] / graph_conv_filters.shape[-1] == self.num_filters
         if self.bias is None:
-            self.bias = torch.randn(1).to(self.device)
+            self.bias = torch.zeros(self.output_dim).to(self.device)
             self.bias.requires_grad_()
 
         if self.kernel is None:
-            self.kernel = torch.randn(x.shape[-1] * self.num_filters, self.output_dim).to(self.device)
+            self.kernel = torch.nn.init.xavier_uniform_(torch.empty(x.shape[-1] * self.num_filters, self.output_dim), gain=1.0).to(self.device)
             self.kernel.requires_grad_()
 
         # graph_conv_op shape of x should be 3-dimensional
@@ -56,7 +56,7 @@ class Encoder(nn.Module):
         self.gcn2 = GCN(100, self.num_filters, self.device)
         self.drop2 = nn.Dropout(0.1)
         self.linear1 = nn.Linear(100, 8, bias=True)
-        self.linear2 = nn.Linear(8,6, bias=True)
+        self.linear2 = nn.Linear(8, 6, bias=True)
         self.mean_linear = nn.Linear(6, modelArgs["latent_dim"])
         self.log_var_linear = nn.Linear(6, modelArgs["latent_dim"])
         # graph_conv_filters = preprocess_adj_tensor_with_identity(torch.squeeze(A_train))
@@ -65,7 +65,7 @@ class Encoder(nn.Module):
         z_mean, z_log_var = args
         batch = z_mean.shape[0]
         dim = z_mean.shape[1]
-        epsilon = torch.randn(1)[0]
+        epsilon = torch.randn(batch, dim).to(self.device)
         return z_mean + torch.exp(0.5 * z_log_var) * epsilon
 
     def forward(self, input, graph_conv_filters):
@@ -203,12 +203,13 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs):
     bce = nn.BCELoss(reduction="sum")
     adj_reconstruction_loss = bce(A.flatten(), A_hat.flatten().detach())
 
-    kl_loss = 1 + z_log_var - z_mean ** 2 - z_log_var.exp()
-    kl_loss = torch.sum(torch.mean(kl_loss, dim=-1)) ######## ?
-    kl_loss *= -0.5
+    # print(torch.min(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()))
+    kl_loss = -0.5 * torch.sum(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()) ######## ?
 
     # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss,  trainArgs["loss_weights"][2] * kl_loss)
     loss = trainArgs["loss_weights"][0] * adj_reconstruction_loss + trainArgs["loss_weights"][1] * attr_reconstruction_loss +  trainArgs["loss_weights"][2] * kl_loss
+
+
     return loss
 
 
