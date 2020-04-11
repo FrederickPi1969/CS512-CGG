@@ -205,6 +205,7 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs):
 
     # print(torch.min(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()))
     kl_loss = -0.5 * torch.sum(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()) ######## ?
+    # print(kl_loss)
 
     # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss,  trainArgs["loss_weights"][2] * kl_loss)
     loss = trainArgs["loss_weights"][0] * adj_reconstruction_loss + trainArgs["loss_weights"][1] * attr_reconstruction_loss +  trainArgs["loss_weights"][2] * kl_loss
