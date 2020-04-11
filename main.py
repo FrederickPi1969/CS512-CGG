@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     epochs = "20" #@param [10, 20, 50]
     trainArgs["epochs"] = int(epochs)
-    batch_size = "16" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
+    batch_size = "1024" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
     trainArgs["batch_size"] = int(batch_size)
     early_stop = "2" #@param [1, 2, 3, 4, 10]
     trainArgs["early_stop"] = int(early_stop)
@@ -96,11 +96,11 @@ if __name__ == "__main__":
 
     print("\n\n =================Start Training=====================")
     for e in range(trainArgs["epochs"]):
-        print("Epoch {} / {}".format(e, trainArgs["epochs"]))
+        print("Epoch {} / {}".format(e + 1, trainArgs["epochs"]))
         # for i in tqdm(range(len(Attr_train)), leave=True):
         loss = 0
         for i in range(len(Attr_train)):
-
+            vae.train()
             optimizer.zero_grad()
             attr = Attr_train[i].float().to(device)
             A = A_train[i].float().to(device)
