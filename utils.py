@@ -271,7 +271,7 @@ def generate_data(dataArgs):
     Param = np.zeros((dataArgs["n_graph"], 3)) ## generative parameters
     Topol = np.zeros((dataArgs["n_graph"], 5)) ## topological properties
 
-
+    print("\n============= Generating Data ===========================")
     for i in tqdm(range(0, dataArgs["n_graph"]), leave=True, position=0):
 
         n = np.random.randint(1, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and

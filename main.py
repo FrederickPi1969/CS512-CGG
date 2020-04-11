@@ -1,6 +1,7 @@
 from utils import *
 from model import *
 import numpy as np
+import torch.optim as optim
 import torch
 
 if __name__ == "__main__":
@@ -20,7 +21,7 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "100" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     A, Attr, Param, Topol = generate_data(dataArgs)
@@ -47,6 +48,9 @@ if __name__ == "__main__":
     trainArgs["early_stop"] = int(early_stop)
     train_test_split = "0.1" #@param [0.1, 0.2, 0.3, 0.5]
     trainArgs["data_split"] = float(train_test_split)
+    lr = "0.001"  #@param [0.1, 0.01, 0.001, 0.0001, 0.00001]
+    trainArgs["lr"] = float(lr)
+
 
 
     ## Train and Test Split _______________________________________________
@@ -61,8 +65,8 @@ if __name__ == "__main__":
     Param_test = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"])*Param.shape[0]):]), trainArgs["batch_size"])
     Topol_test = generate_batch(torch.from_numpy(Topol[int((1-trainArgs["data_split"])*Topol.shape[0]):]), trainArgs["batch_size"])
 
-    print(A_train.shape)
-    print(len(Attr_train), Attr_train[0].shape)
+    # print(A_train.shape)
+    # print(len(Attr_train), Attr_train[0].shape)
 
     ## build graph_conv_filters
     SYM_NORM = True
@@ -77,17 +81,40 @@ if __name__ == "__main__":
     # attribute first -> (n, 1), adjacency second -> (n, n, 1)
     modelArgs["input_shape"], modelArgs["output_shape"] = ((Attr_train[0].shape[1], 1), (int(A_train_mod[0].shape[1] / modelArgs["gnn_filters"]), A_train_mod[0].shape[2], 1)),\
                                                           ((Attr_test[0].shape[1], 1), (int(A_test_mod[0].shape[1] / modelArgs["gnn_filters"]), A_test_mod[0].shape[2], 1))
-    print(modelArgs["input_shape"], modelArgs["output_shape"])
-    print(A_train[0].shape)
+    # print(modelArgs["input_shape"], modelArgs["output_shape"])
+    # print(A_train[0].shape)
 
     ############################ Start Training #############################
     # encoder = Encoder(modelArgs, trainArgs, device).to(device)
     # z = encoder(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
     # decoder = Decoder(modelArgs, trainArgs, device).to(device)
     # A_hat, attr_hat = decoder(z)
+
     vae = VAE(modelArgs, trainArgs,device).to(device)
-    A_hat, attr_hat = vae(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
-    print(A_hat.shape, attr_hat.shape)
+    optimizer = optim.Adam(vae.parameters(), lr=trainArgs["lr"])
+    # A_hat, attr_hat = vae(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
+
+    print("\n\n =================Start Training=====================")
+    for e in range(trainArgs["epochs"]):
+        print("Epoch {} / {}".format(e, trainArgs["epochs"]))
+        # for i in tqdm(range(len(Attr_train)), leave=True):
+        loss = 0
+        for i in range(len(Attr_train)):
+
+            optimizer.zero_grad()
+            attr = Attr_train[i].float().to(device)
+            A = A_train[i].float().to(device)
+            graph_conv_filters = A_train_mod[i].float().to(device)
+
+            z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
+
+            loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs)
+
+            loss.backward()
+            optimizer.step()
+
+
+        print("At Epoch {}, training loss {} ".format(e, loss.item()))
 
 
 
