@@ -5,26 +5,47 @@ import random
 import queue
 from itertools import permutations
 
-def sample_subgraph(G, prob = 0.8, start = None):
+def dblp():
+    name_dict = {}
+    nodes = open('authorDict.txt', 'r').readlines()
+    count = 0
+    for node in nodes:
+        name_dict[count] = node.replace("\n", "")
+        count += 1
+    
+    G = nx.null_graph()
+    edges = open('dblp_edges.txt', 'r').readlines()
+    for edge in edges:
+        temp = edge.replace("\n", "").split() 
+        G.add_edge(name_dict[int(temp[0])], name_dict[int(temp[1])])
+
+    return G
+
+def sample_subgraph(G, target_size = 20, start = None):
     subgraph = nx.null_graph()
     initial_node = start
     if not start or start not in G.nodes():
         initial_node = np.random.choice(list(G.nodes()))
     
     node_queue = queue.Queue()
-    node_queue.put((initial_node, prob))
+    node_queue.put((initial_node, 1))
+    prob_sum = 1
     seen = set()
     seen.add(initial_node)
 
     ## sample nodes
     while not node_queue.empty():
         new_node = node_queue.get()
+        prob_sum -= new_node[1]
+        roll = random.random()
+        if roll > new_node[1]:
+            continue
         subgraph.add_node(new_node[0])
         for neighbor in set(G.neighbors(new_node[0])) - seen:
-            roll = random.random()
             seen.add(neighbor)
-            if roll < new_node[1]:
-                node_queue.put((neighbor, new_node[1] * prob))
+            select_prob = max(0, 1 - ((len(subgraph) + prob_sum) / target_size))
+            node_queue.put((neighbor, select_prob))
+            prob_sum += select_prob
 
     ## add edges
     for edge in set(permutations(list(subgraph.nodes()), 2)).intersection(set(G.edges())):
