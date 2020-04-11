@@ -1,0 +1,93 @@
+from utils import *
+from model import *
+import numpy as np
+import torch
+
+if __name__ == "__main__":
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(device)
+
+    ####################     Generation parameters     #######################################################
+    dataArgs = dict()
+
+    maximum_number_of_nodes_n = "12" #@param [12, 24, 30, 48]
+    dataArgs["max_n_node"] = int(maximum_number_of_nodes_n)
+
+    range_of_linkage_probability_p = "0,1" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
+    dataArgs["p_range"] = [float(range_of_linkage_probability_p.split(",")[0]), float(range_of_linkage_probability_p.split(",")[1])]
+
+    node_attributes = "degree" #@param ["none", "uniform", "degree", "p_value", "random"]
+    dataArgs["node_attr"] = node_attributes
+
+    number_of_graph_instances = "100" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    dataArgs["n_graph"] = int(number_of_graph_instances)
+
+    A, Attr, Param, Topol = generate_data(dataArgs)
+    g, a, attr = unpad_data(A[0], Attr[0])
+
+    ####################     Model parameters     #######################################################
+    modelArgs = {"gnn_filters": 2, "conv_filters": 16, "kernel_size": 3}
+
+    number_of_latent_variables= "3" #@param [1, 2, 3, 4, 5]
+    modelArgs["latent_dim"] = int(number_of_latent_variables)
+
+    trainArgs = dict()
+
+    weight_graph_reconstruction_loss = "5" #@param [0, 1, 2, 3, 5, 10, 20]
+    weight_attribute_reconstruction_loss = "2" #@param [0, 1, 2, 3, 5, 10, 20]
+    beta_value = "10" #@param [0, 1, 2, 3, 5, 10, 20]
+    trainArgs["loss_weights"] = [int(weight_graph_reconstruction_loss), int(weight_attribute_reconstruction_loss), int(beta_value)]
+
+    epochs = "20" #@param [10, 20, 50]
+    trainArgs["epochs"] = int(epochs)
+    batch_size = "16" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
+    trainArgs["batch_size"] = int(batch_size)
+    early_stop = "2" #@param [1, 2, 3, 4, 10]
+    trainArgs["early_stop"] = int(early_stop)
+    train_test_split = "0.1" #@param [0.1, 0.2, 0.3, 0.5]
+    trainArgs["data_split"] = float(train_test_split)
+
+
+    ## Train and Test Split _______________________________________________
+
+    A_train = torch.from_numpy(A[:int((1-trainArgs["data_split"])*A.shape[0])])
+    Attr_train = generate_batch(torch.from_numpy(Attr[:int((1-trainArgs["data_split"])*Attr.shape[0])]), trainArgs["batch_size"])
+    Param_train = generate_batch(torch.from_numpy(Param[:int((1-trainArgs["data_split"])*Param.shape[0])]), trainArgs["batch_size"])
+    Topol_train = generate_batch(torch.from_numpy(Topol[:int((1-trainArgs["data_split"])*Topol.shape[0])]), trainArgs["batch_size"])
+
+    A_test = torch.from_numpy(A[int((1-trainArgs["data_split"])*A.shape[0]):])
+    Attr_test = generate_batch(torch.from_numpy(Attr[int((1-trainArgs["data_split"])*Attr.shape[0]):]), trainArgs["batch_size"])
+    Param_test = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"])*Param.shape[0]):]), trainArgs["batch_size"])
+    Topol_test = generate_batch(torch.from_numpy(Topol[int((1-trainArgs["data_split"])*Topol.shape[0]):]), trainArgs["batch_size"])
+
+    print(A_train.shape)
+    print(len(Attr_train), Attr_train[0].shape)
+
+    ## build graph_conv_filters
+    SYM_NORM = True
+    A_train_mod = generate_batch(preprocess_adj_tensor_with_identity(torch.squeeze(A_train, -1), SYM_NORM), trainArgs["batch_size"])
+    A_test_mod = generate_batch(preprocess_adj_tensor_with_identity(torch.squeeze(A_test, -1), SYM_NORM), trainArgs["batch_size"])
+    A_train = generate_batch(A_train, trainArgs["batch_size"])
+    A_test = generate_batch(A_test, trainArgs["batch_size"])
+
+    train_data = (Attr_train, A_train_mod, Param_train, Topol_train)
+    test_data = (Attr_test, A_test_mod, Param_test, Topol_test)
+
+    # attribute first -> (n, 1), adjacency second -> (n, n, 1)
+    modelArgs["input_shape"], modelArgs["output_shape"] = ((Attr_train[0].shape[1], 1), (int(A_train_mod[0].shape[1] / modelArgs["gnn_filters"]), A_train_mod[0].shape[2], 1)),\
+                                                          ((Attr_test[0].shape[1], 1), (int(A_test_mod[0].shape[1] / modelArgs["gnn_filters"]), A_test_mod[0].shape[2], 1))
+    print(modelArgs["input_shape"], modelArgs["output_shape"])
+    print(A_train[0].shape)
+
+    ############################ Start Training #############################
+    # encoder = Encoder(modelArgs, trainArgs, device).to(device)
+    # z = encoder(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
+    # decoder = Decoder(modelArgs, trainArgs, device).to(device)
+    # A_hat, attr_hat = decoder(z)
+    vae = VAE(modelArgs, trainArgs,device).to(device)
+    A_hat, attr_hat = vae(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
+    print(A_hat.shape, attr_hat.shape)
+
+
+
