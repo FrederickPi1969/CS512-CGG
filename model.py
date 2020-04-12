@@ -1,11 +1,11 @@
-from utils import *
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from tqdm import tqdm
-import scipy.sparse as sp
-import numpy as np
 import networkx as nx
+from utils import *
+import torch.nn.functional as F
+import torch
+import scipy.sparse as sp
+import torch.nn as nn
+import numpy as np
+from tqdm import tqdm
 from networkx.generators import random_graphs
 
 
