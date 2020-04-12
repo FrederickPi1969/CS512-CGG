@@ -3,6 +3,7 @@ from model import *
 import numpy as np
 import torch.optim as optim
 import torch
+from matplotlib import pyplot as plt
 
 if __name__ == "__main__":
 
@@ -18,7 +19,7 @@ if __name__ == "__main__":
     range_of_linkage_probability_p = "0,1" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
     dataArgs["p_range"] = [float(range_of_linkage_probability_p.split(",")[0]), float(range_of_linkage_probability_p.split(",")[1])]
 
-    node_attributes = "degree" #@param ["none", "uniform", "degree", "p_value", "random"]
+    node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
     number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
@@ -30,7 +31,7 @@ if __name__ == "__main__":
     ####################     Model parameters     #######################################################
     modelArgs = {"gnn_filters": 2, "conv_filters": 16, "kernel_size": 3}
 
-    number_of_latent_variables= "3" #@param [1, 2, 3, 4, 5]
+    number_of_latent_variables= "64" #@param [1, 2, 3, 4, 5]
     modelArgs["latent_dim"] = int(number_of_latent_variables)
 
     trainArgs = dict()
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     beta_value = "10" #@param [0, 1, 2, 3, 5, 10, 20]
     trainArgs["loss_weights"] = [int(weight_graph_reconstruction_loss), int(weight_attribute_reconstruction_loss), int(beta_value)]
 
-    epochs = "20" #@param [10, 20, 50]
+    epochs = "30" #@param [10, 20, 50]
     trainArgs["epochs"] = int(epochs)
     batch_size = "1024" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
     trainArgs["batch_size"] = int(batch_size)
@@ -94,6 +95,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(vae.parameters(), lr=trainArgs["lr"])
     # A_hat, attr_hat = vae(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
 
+    losses = []
     print("\n\n =================Start Training=====================")
     for e in range(trainArgs["epochs"]):
         print("Epoch {} / {}".format(e + 1, trainArgs["epochs"]))
@@ -108,13 +110,14 @@ if __name__ == "__main__":
 
             z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
 
-            loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs)
+            loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
 
             loss.backward()
             optimizer.step()
 
 
-        print("At Epoch {}, training loss {} ".format(e, loss.item()))
+        print("At Epoch {}, training loss {} ".format(e + 1, loss.item()))
+        losses.append(loss.item())
 
-
-
+    plt.plot(np.arange(len(losses)), np.array(losses))
+    plt.show()
