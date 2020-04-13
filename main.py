@@ -13,7 +13,7 @@ if __name__ == "__main__":
     ####################     Generation parameters     #######################################################
     dataArgs = dict()
 
-    maximum_number_of_nodes_n = "12" #@param [12, 24, 30, 48]
+    maximum_number_of_nodes_n = "24" #@param [12, 24, 30, 48]
     dataArgs["max_n_node"] = int(maximum_number_of_nodes_n)
 
     range_of_linkage_probability_p = "0,1" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "20000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     A, Attr, Param, Topol = generate_data(dataArgs)
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     ####################     Model parameters     #######################################################
     modelArgs = {"gnn_filters": 2, "conv_filters": 16, "kernel_size": 3}
 
-    number_of_latent_variables= "64" #@param [1, 2, 3, 4, 5]
+    number_of_latent_variables= "10" #@param [1, 2, 3, 4, 5]
     modelArgs["latent_dim"] = int(number_of_latent_variables)
 
     trainArgs = dict()
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     beta_value = "10" #@param [0, 1, 2, 3, 5, 10, 20]
     trainArgs["loss_weights"] = [int(weight_graph_reconstruction_loss), int(weight_attribute_reconstruction_loss), int(beta_value)]
 
-    epochs = "30" #@param [10, 20, 50]
+    epochs = "20" #@param [10, 20, 50]
     trainArgs["epochs"] = int(epochs)
     batch_size = "1024" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
     trainArgs["batch_size"] = int(batch_size)
@@ -114,6 +114,10 @@ if __name__ == "__main__":
 
             loss.backward()
             optimizer.step()
+
+            vae.eval()
+            ### validation dataset
+
 
 
         print("At Epoch {}, training loss {} ".format(e + 1, loss.item()))

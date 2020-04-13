@@ -97,40 +97,41 @@ class Decoder(nn.Module):
         self.latent_dim  = modelArgs["latent_dim"]
 
         # decoding A
-        # self.conv1 = nn.Conv2d(in_channels=1, out_channels=self.out_channels,
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=self.out_channels,
+                               kernel_size=self.kernel_size, stride=2,
+                               padding=self.compute_same_padding_size(self.kernel_size))
+
+        self.padding_size = self.compute_same_padding_size(self.kernel_size)
+
+        self.conv1_w = self.compute_shape_after_conv(w = self.node_num, k=self.kernel_size, s=2,
+                                                     p = self.padding_size)
+
+        # print(self.conv1_w)
+        self.conv2_w = self.compute_shape_after_conv(w=self.conv1_w, k=self.kernel_size, s=2,
+                                                     p=self.padding_size)
+
+        # print(self.conv2_w)
+        # self.conv2 = nn.Conv2d(in_channels=1, out_channels=self.out_channels,
         #                        kernel_size=self.kernel_size, stride=2,
         #                        padding=self.compute_same_padding_size(self.kernel_size))
 
-        # self.padding_size = self.compute_same_padding_size(self.kernel_size)
-        #
-        # self.conv1_w = self.compute_shape_after_conv(w = self.node_num, k=self.kernel_size, s=2,
-        #                                              p = self.padding_size)
-        #
-        # # print(self.conv1_w)
-        # self.conv2_w = self.compute_shape_after_conv(w=self.conv1_w, k=self.kernel_size, s=2,
-        #                                              p=self.padding_size)
-        #
-        # # print(self.conv2_w)
-        # # self.conv2 = nn.Conv2d(in_channels=1, out_channels=self.out_channels,
-        # #                        kernel_size=self.kernel_size, stride=2,
-        # #                        padding=self.compute_same_padding_size(self.kernel_size))
-        #
-        # self.dense1 = nn.Linear(self.latent_dim, self.conv2_w * self.conv2_w * self.out_channels * 4)
-        #
-        # self.deconv1 = nn.ConvTranspose2d(in_channels=self.out_channels * 4, out_channels= self.out_channels * 2,
-        #                                   kernel_size=self.kernel_size, stride=2, padding=(self.padding_size[0], self.padding_size[1]),
-        #                                   output_padding=(self.padding_size[0], self.padding_size[1]), bias=True)
-        #
-        # self.deconv2 = nn.ConvTranspose2d(in_channels= self.out_channels * 2, out_channels=self.out_channels,
-        #                                   kernel_size=self.kernel_size, stride=2, padding=(self.padding_size[0], self.padding_size[1]),
-        #                                   output_padding=(self.padding_size[0], self.padding_size[1]), bias=True)
-        #
-        # self.deconv3 = nn.ConvTranspose2d(in_channels= self.out_channels, out_channels=1,
-        #                                   kernel_size=self.kernel_size, stride=1, padding=(self.padding_size[0], self.padding_size[1]))
-        self.l1 = nn.Linear(self.latent_dim, 12)
-        self.l2 = nn.Linear(12, 24)
-        self.l3 = nn.Linear(24, 48)
-        self.l4 = nn.Linear(48, self.node_num * self.node_num)
+        self.dense1 = nn.Linear(self.latent_dim, self.conv2_w * self.conv2_w * self.out_channels * 4)
+
+        self.deconv1 = nn.ConvTranspose2d(in_channels=self.out_channels * 4, out_channels= self.out_channels * 2,
+                                          kernel_size=self.kernel_size, stride=2, padding=(self.padding_size[0], self.padding_size[1]),
+                                          output_padding=(self.padding_size[0], self.padding_size[1]), bias=True)
+
+        self.deconv2 = nn.ConvTranspose2d(in_channels= self.out_channels * 2, out_channels=self.out_channels,
+                                          kernel_size=self.kernel_size, stride=2, padding=(self.padding_size[0], self.padding_size[1]),
+                                          output_padding=(self.padding_size[0], self.padding_size[1]), bias=True)
+
+        self.deconv3 = nn.ConvTranspose2d(in_channels= self.out_channels, out_channels=1,
+                                          kernel_size=self.kernel_size, stride=1, padding=(self.padding_size[0], self.padding_size[1]))
+
+        # self.l1 = nn.Linear(self.latent_dim, 12)
+        # self.l2 = nn.Linear(12, 24)
+        # self.l3 = nn.Linear(24, 48)
+        # self.l4 = nn.Linear(48, self.node_num * self.node_num)
 
         # decoding attribute
         self.linear1 = nn.Linear(self.latent_dim, 4)
@@ -148,30 +149,31 @@ class Decoder(nn.Module):
         return (p_left, p_right, p_left, p_right)
 
     def forward(self, z):
-        # decoding A with deconvolution:
-        # x = self.dense1(z)
-        # x = x.view(-1, self.out_channels * 4, self.conv2_w, self.conv2_w)
-        # # print(x.shape)
-        # x = self.deconv1(x)
-        # # print(x)
-        # x = F.relu(x)
-        # # print(x.shape)
-        # x = self.deconv2(x)
-        # x = F.relu(x)
-        # # print(x.shape)
-        # x = self.deconv3(x)
-        # A_hat = torch.sigmoid(x).transpose(-1, -2).transpose(-1, 1)
+        # # decoding A with deconvolution:
+        x = self.dense1(z)
+        x = x.view(-1, self.out_channels * 4, self.conv2_w, self.conv2_w)
+        # print(x.shape)
+        x = self.deconv1(x)
+        # print(x)
+        x = F.relu(x)
+        # print(x.shape)
+        x = self.deconv2(x)
+        x = F.relu(x)
+        # print(x.shape)
+        x = self.deconv3(x)
+        A_hat = torch.sigmoid(x).transpose(-1, -2).transpose(-1, 1)
 
-        # decoding A with fully connected layer:
-        x = self.l1(z)
-        x = F.relu(x)
-        x = self.l2(x)
-        x = F.relu(x)
-        x = self.l3(x)
-        x = F.relu(x)
-        x = self.l4(x)
-        x = torch.sigmoid(x)
-        A_hat = x.reshape(-1, self.node_num, self.node_num)
+
+        # # decoding A with fully connected layer:
+        # x = self.l1(z)
+        # x = F.relu(x)
+        # x = self.l2(x)
+        # x = F.relu(x)
+        # x = self.l3(x)
+        # x = F.relu(x)
+        # x = self.l4(x)
+        # x = torch.sigmoid(x)
+        # A_hat = x.reshape(-1, self.node_num, self.node_num)
 
 
         # decoding node attributes:
@@ -204,7 +206,8 @@ class VAE(nn.Module):
         return z_mean, z_log_var, z, A_hat, attr_hat
 
 
-
+def binary_cross_entropy(true, pred):
+    return -1 * torch.sum(true * torch.log(pred))
 
 def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
     attr, attr_hat = y[0], y_hat[0]
@@ -223,11 +226,18 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
     # # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss,  trainArgs["loss_weights"][2] * kl_loss)
     # loss = trainArgs["loss_weights"][0] * adj_reconstruction_loss + trainArgs["loss_weights"][1] * attr_reconstruction_loss +  trainArgs["loss_weights"][2] * kl_loss
 
+
     mse = nn.MSELoss(reduction="mean")
     attr_reconstruction_loss = mse(attr.flatten(), attr_hat.flatten()) * modelArgs["input_shape"][0][0]
 
     bce = nn.BCELoss(reduction="mean")
-    adj_reconstruction_loss = bce(A.flatten(), A_hat.flatten().detach()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
+    # adj_reconstruction_loss = bce(A.flatten(), A_hat.flatten().detach()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
+    # adj_reconstruction_loss.requires_grad_()
+
+    # print(A_hat.flatten().requires_grad)
+
+    # adj_reconstruction_loss = mse(A.flatten(), A_hat.flatten()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
+    adj_reconstruction_loss =  binary_cross_entropy(A.flatten(), A_hat.flatten())
 
     # print(torch.min(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()))
     kl_loss = -0.5 * torch.sum((1 + z_log_var - z_mean.pow(2) - z_log_var.exp()), dim = -1) ######## ?
@@ -235,7 +245,7 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
 
     # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss,  trainArgs["loss_weights"][2] * kl_loss)
     loss = torch.mean(trainArgs["loss_weights"][0] * adj_reconstruction_loss + trainArgs["loss_weights"][1] * attr_reconstruction_loss +  trainArgs["loss_weights"][2] * kl_loss)
-
+    # loss = trainArgs["loss_weights"][0] * adj_reconstruction_loss
 
     return loss
 
