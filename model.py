@@ -116,6 +116,7 @@ class Decoder(nn.Module):
         #                        padding=self.compute_same_padding_size(self.kernel_size))
 
         self.dense1 = nn.Linear(self.latent_dim, self.conv2_w * self.conv2_w * self.out_channels * 4)
+        self.dense1_nm = nn.BatchNorm1d(self.conv2_w * self.conv2_w * self.out_channels * 4)
 
         self.deconv1 = nn.ConvTranspose2d(in_channels=self.out_channels * 4, out_channels= self.out_channels * 2,
                                           kernel_size=self.kernel_size, stride=2, padding=(self.padding_size[0], self.padding_size[1]),
@@ -132,6 +133,10 @@ class Decoder(nn.Module):
         # self.l2 = nn.Linear(12, 24)
         # self.l3 = nn.Linear(24, 48)
         # self.l4 = nn.Linear(48, self.node_num * self.node_num)
+        # self.norm1 = nn.BatchNorm1d(12)
+        # self.norm2 = nn.BatchNorm1d(24)
+        # self.norm3 = nn.BatchNorm1d(48)
+        # self.norm4 = nn.BatchNorm1d(self.node_num * self.node_num)
 
         # decoding attribute
         self.linear1 = nn.Linear(self.latent_dim, 4)
@@ -151,6 +156,8 @@ class Decoder(nn.Module):
     def forward(self, z):
         # # decoding A with deconvolution:
         x = self.dense1(z)
+        x = self.dense1_nm(x)
+        x = F.relu(x)
         x = x.view(-1, self.out_channels * 4, self.conv2_w, self.conv2_w)
         # print(x.shape)
         x = self.deconv1(x)
@@ -166,14 +173,17 @@ class Decoder(nn.Module):
 
         # # decoding A with fully connected layer:
         # x = self.l1(z)
+        # x = self.norm1(x)
         # x = F.relu(x)
         # x = self.l2(x)
+        # x = self.norm2(x)
         # x = F.relu(x)
         # x = self.l3(x)
+        # x = self.norm3(x)
         # x = F.relu(x)
         # x = self.l4(x)
-        # x = torch.sigmoid(x)
-        # A_hat = x.reshape(-1, self.node_num, self.node_num)
+        # x = self.norm4(x)
+        # A_hat = torch.sigmoid(x).transpose(-1, -2).transpose(-1, 1)
 
 
         # decoding node attributes:
