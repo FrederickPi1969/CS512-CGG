@@ -1,5 +1,3 @@
-from utils import *
-from model import *
 import numpy as np
 import torch.optim as optim
 import torch
@@ -47,8 +45,10 @@ if __name__ == "__main__":
     trainArgs["batch_size"] = int(batch_size)
     early_stop = "2" #@param [1, 2, 3, 4, 10]
     trainArgs["early_stop"] = int(early_stop)
-    train_test_split = "0.1" #@param [0.1, 0.2, 0.3, 0.5]
+    train_test_split = "0.2" #@param [0.1, 0.2, 0.3, 0.5]
+    train_validation_split = "0.1" #@param [0.1, 0.2, 0.3, 0.5]
     trainArgs["data_split"] = float(train_test_split)
+    trainArgs["validation_split"] = float(train_validation_split)
     lr = "0.001"  #@param [0.1, 0.01, 0.001, 0.0001, 0.00001]
     trainArgs["lr"] = float(lr)
 
@@ -56,11 +56,16 @@ if __name__ == "__main__":
 
     ## Train and Test Split _______________________________________________
 
-    A_train = torch.from_numpy(A[:int((1-trainArgs["data_split"])*A.shape[0])])
-    Attr_train = generate_batch(torch.from_numpy(Attr[:int((1-trainArgs["data_split"])*Attr.shape[0])]), trainArgs["batch_size"])
-    Param_train = generate_batch(torch.from_numpy(Param[:int((1-trainArgs["data_split"])*Param.shape[0])]), trainArgs["batch_size"])
-    Topol_train = generate_batch(torch.from_numpy(Topol[:int((1-trainArgs["data_split"])*Topol.shape[0])]), trainArgs["batch_size"])
+    A_train = torch.from_numpy(A[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*A.shape[0])])
+    Attr_train = generate_batch(torch.from_numpy(Attr[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Attr.shape[0])]), trainArgs["batch_size"])
+    Param_train = generate_batch(torch.from_numpy(Param[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Param.shape[0])]), trainArgs["batch_size"])
+    Topol_train = generate_batch(torch.from_numpy(Topol[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Topol.shape[0])]), trainArgs["batch_size"])
 
+    A_validate = torch.from_numpy(A[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*A.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])])
+    Attr_validate = generate_batch(torch.from_numpy(Attr[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Attr.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])]), trainArgs["batch_size"])
+    Param_validate = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Param.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])]), trainArgs["batch_size"])
+    Topol_validate = generate_batch(torch.from_numpy(Topol[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Topol.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])]), trainArgs["batch_size"])
+    
     A_test = torch.from_numpy(A[int((1-trainArgs["data_split"])*A.shape[0]):])
     Attr_test = generate_batch(torch.from_numpy(Attr[int((1-trainArgs["data_split"])*Attr.shape[0]):]), trainArgs["batch_size"])
     Param_test = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"])*Param.shape[0]):]), trainArgs["batch_size"])
@@ -72,11 +77,14 @@ if __name__ == "__main__":
     ## build graph_conv_filters
     SYM_NORM = True
     A_train_mod = generate_batch(preprocess_adj_tensor_with_identity(torch.squeeze(A_train, -1), SYM_NORM), trainArgs["batch_size"])
+    A_validate_mod = generate_batch(preprocess_adj_tensor_with_identity(torch.squeeze(A_validate, -1), SYM_NORM), trainArgs["batch_size"])
     A_test_mod = generate_batch(preprocess_adj_tensor_with_identity(torch.squeeze(A_test, -1), SYM_NORM), trainArgs["batch_size"])
     A_train = generate_batch(A_train, trainArgs["batch_size"])
+    A_validate = generate_batch(A_validate, trainArgs["batch_size"])
     A_test = generate_batch(A_test, trainArgs["batch_size"])
 
     train_data = (Attr_train, A_train_mod, Param_train, Topol_train)
+    validate_data = (Attr_validate, A_validate_mod, Param_validate, Topol_validate)
     test_data = (Attr_test, A_test_mod, Param_test, Topol_test)
 
     # attribute first -> (n, 1), adjacency second -> (n, n, 1)
@@ -95,7 +103,8 @@ if __name__ == "__main__":
     optimizer = optim.Adam(vae.parameters(), lr=trainArgs["lr"])
     # A_hat, attr_hat = vae(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
 
-    losses = []
+    train_losses = []
+    validation_losses = []
     print("\n\n =================Start Training=====================")
     for e in range(trainArgs["epochs"]):
         print("Epoch {} / {}".format(e + 1, trainArgs["epochs"]))
@@ -117,11 +126,22 @@ if __name__ == "__main__":
 
             vae.eval()
             ### validation dataset
-
-
-
         print("At Epoch {}, training loss {} ".format(e + 1, loss.item()))
-        losses.append(loss.item())
+        train_losses.append(loss.item())
+        for i in range(len(Attr_validate)):
+            attr = Attr_validate[i].float().to(device)
+            A = A_validate[i].float().to(device)
+            graph_conv_filters = A_validate_mod[i].float().to(device)
 
-    plt.plot(np.arange(len(losses)), np.array(losses))
+            z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
+            loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
+            vae.eval()
+
+
+
+        print("At Epoch {}, validation loss {} ".format(e + 1, loss.item()))
+        validation_losses.append(loss.item())
+
+    plt.plot(np.arange(len(train_losses)), np.array(train_losses))
+    plt.plot(np.arange(len(validation_losses)), np.array(validation_losses))
     plt.show()
