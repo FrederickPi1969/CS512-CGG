@@ -22,7 +22,7 @@ if __name__ == "__main__":
     node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "20000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     A, Attr, Param, Topol = generate_data(dataArgs)
@@ -130,20 +130,23 @@ if __name__ == "__main__":
             ### validation dataset
         print("At Epoch {}, training loss {} ".format(e + 1, loss.item()))
         train_losses.append(loss.item())
-        for i in range(len(Attr_validate)):
-            attr = Attr_validate[i].float().to(device)
-            A = A_validate[i].float().to(device)
-            graph_conv_filters = A_validate_mod[i].float().to(device)
 
-            z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
-            loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
-            vae.eval()
+        with torch.no_grad():
+            for i in range(len(Attr_validate)):
+                    attr = Attr_validate[i].float().to(device)
+                    A = A_validate[i].float().to(device)
+                    graph_conv_filters = A_validate_mod[i].float().to(device)
+
+                    z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
+                    loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
+            
 
 
 
         print("At Epoch {}, validation loss {} ".format(e + 1, loss.item()))
         validation_losses.append(loss.item())
 
-    plt.plot(np.arange(len(train_losses)), np.array(train_losses))
-    plt.plot(np.arange(len(validation_losses)), np.array(validation_losses))
+    plt.plot(np.arange(len(train_losses)), np.array(train_losses), label = "train loss")
+    plt.plot(np.arange(len(validation_losses)), np.array(validation_losses), label = "test loss")
+    plt.legend()
     plt.show()
