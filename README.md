@@ -1,7 +1,7 @@
 ## Implementation of *CGG Framework*, NeurIPS 2020.
 
-[Trello Board](https://trello.com/b/qj62nKFd)
 [Meeting Notes Google Doc](https://docs.google.com/document/d/1ODvLkGGKIBYfkVdCGaUNvhUUtzc_zeIijEvBC9iHB_4/edit)
+
 Way to push code,
 
 ```
