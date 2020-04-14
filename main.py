@@ -206,7 +206,7 @@ if __name__ == "__main__":
     labels = torch.zeros(1).to(device)
 
     loss_D = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
-    loss_D.backward()
+    loss_D.backward(retain_graph=True)
     optimizer_D.step()
 
 
@@ -220,7 +220,6 @@ if __name__ == "__main__":
     loss_w = w_loss_func(labels, preds, feature_true, feature_gen, alpha=10, beta=20)
     loss_w.backward()
     optimizer_w.step()
-
 
 
 
