@@ -13,35 +13,36 @@ if __name__ == "__main__":
     ####################     Generation parameters     #######################################################
     dataArgs = dict()
 
-    maximum_number_of_nodes_n = "24" #@param [12, 24, 30, 48]
+    maximum_number_of_nodes_n = "12" #@param [12, 24, 30, 48]
     dataArgs["max_n_node"] = int(maximum_number_of_nodes_n)
 
-    range_of_linkage_probability_p = "0,1" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
+    range_of_linkage_probability_p = "0.5,0.5" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
     dataArgs["p_range"] = [float(range_of_linkage_probability_p.split(",")[0]), float(range_of_linkage_probability_p.split(",")[1])]
 
     node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "10" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     A, Attr, Param, Topol = generate_data(dataArgs)
     g, a, attr = unpad_data(A[0], Attr[0])
 
+
     ####################     Model parameters     #######################################################
     modelArgs = {"gnn_filters": 2, "conv_filters": 16, "kernel_size": 3}
 
-    number_of_latent_variables= "10" #@param [1, 2, 3, 4, 5]
+    number_of_latent_variables= "64" #@param [1, 2, 3, 4, 5]
     modelArgs["latent_dim"] = int(number_of_latent_variables)
 
     trainArgs = dict()
 
-    weight_graph_reconstruction_loss = "5" #@param [0, 1, 2, 3, 5, 10, 20]
-    weight_attribute_reconstruction_loss = "2" #@param [0, 1, 2, 3, 5, 10, 20]
-    beta_value = "10" #@param [0, 1, 2, 3, 5, 10, 20]
+    weight_graph_reconstruction_loss = "30" #@param [0, 1, 2, 3, 5, 10, 20]
+    weight_attribute_reconstruction_loss = "5" #@param [0, 1, 2, 3, 5, 10, 20]
+    beta_value = "20" #@param [0, 1, 2, 3, 5, 10, 20]
     trainArgs["loss_weights"] = [int(weight_graph_reconstruction_loss), int(weight_attribute_reconstruction_loss), int(beta_value)]
 
-    epochs = "20" #@param [10, 20, 50]
+    epochs = "1" #@param [10, 20, 50]
     trainArgs["epochs"] = int(epochs)
     batch_size = "1024" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
     trainArgs["batch_size"] = int(batch_size)
@@ -67,7 +68,7 @@ if __name__ == "__main__":
     Attr_validate = generate_batch(torch.from_numpy(Attr[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Attr.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])]), trainArgs["batch_size"])
     Param_validate = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Param.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])]), trainArgs["batch_size"])
     Topol_validate = generate_batch(torch.from_numpy(Topol[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Topol.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])]), trainArgs["batch_size"])
-    
+
     A_test = torch.from_numpy(A[int((1-trainArgs["data_split"])*A.shape[0]):])
     Attr_test = generate_batch(torch.from_numpy(Attr[int((1-trainArgs["data_split"])*Attr.shape[0]):]), trainArgs["batch_size"])
     Param_test = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"])*Param.shape[0]):]), trainArgs["batch_size"])
@@ -102,18 +103,23 @@ if __name__ == "__main__":
     # A_hat, attr_hat = decoder(z)
 
     vae = VAE(modelArgs, trainArgs,device).to(device)
-    optimizer = optim.Adam(vae.parameters(), lr=trainArgs["lr"])
+    optimizer = optim.Adam(vae.parameters(), lr=trainArgs["lr"], weight_decay=1e-5)
     # A_hat, attr_hat = vae(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
 
     train_losses = []
     validation_losses = []
+    batched_z = []
+    batched_A_hat =[]
+    batched_Attr_hat = []
+    batched_gcn_filters_from_A_hat = []
     print("\n\n =================Start Training=====================")
     for e in range(trainArgs["epochs"]):
         print("Epoch {} / {}".format(e + 1, trainArgs["epochs"]))
         # for i in tqdm(range(len(Attr_train)), leave=True):
         loss = 0
+        vae.train()
+
         for i in range(len(Attr_train)):
-            vae.train()
             optimizer.zero_grad()
             attr = Attr_train[i].float().to(device)
             A = A_train[i].float().to(device)
@@ -121,27 +127,35 @@ if __name__ == "__main__":
 
             z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
 
-            loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
+            if e + 1 == trainArgs["epochs"]:
+                batched_z.append(z)
+                batched_Attr_hat.append(attr_hat)
+                batched_A_hat.append(A_hat)
+                temp = A_hat.detach().cpu()
+                batched_gcn_filters_from_A_hat.append(preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False))
 
-            loss.backward()
+            loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
             optimizer.step()
 
-            vae.eval()
+
             ### validation dataset
         print("At Epoch {}, training loss {} ".format(e + 1, loss.item()))
         train_losses.append(loss.item())
 
+        vae.eval()
         with torch.no_grad():
             for i in range(len(Attr_validate)):
-                    attr = Attr_validate[i].float().to(device)
-                    A = A_validate[i].float().to(device)
-                    graph_conv_filters = A_validate_mod[i].float().to(device)
+                attr = Attr_validate[i].float().to(device)
+                A = A_validate[i].float().to(device)
+                graph_conv_filters = A_validate_mod[i].float().to(device)
 
-                    z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
-                    loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
-            
+                z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
+                loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
 
-
+                # if e == trainArgs["epochs"] - 1:
+                #     for j in range(A.shape[0]):
+                        # print(A[j][0].squeeze(-1))
+                        # print(A_hat[j][0].squeeze(-1))
 
         print("At Epoch {}, validation loss {} ".format(e + 1, loss.item()))
         validation_losses.append(loss.item())
@@ -149,4 +163,67 @@ if __name__ == "__main__":
     plt.plot(np.arange(len(train_losses)), np.array(train_losses), label = "train loss")
     plt.plot(np.arange(len(validation_losses)), np.array(validation_losses), label = "test loss")
     plt.legend()
-    plt.show()
+    # plt.show()
+
+    ########### Steering
+    # w = torch.tensor(np.random.normal(0.0, 0.1, (*batched_z[0][0].shape)),
+    #              device=device, dtype=torch.float32, requires_grad=True)
+
+
+    # w = torch.randn_like(batched_z[0][0], requires_grad=True).unsqueeze(0).to(device)
+    w = torch.tensor(np.random.normal(0.0, 0.1, [1, 64]),
+                 device='cuda', dtype=torch.float32, requires_grad=True)
+    fil = batched_gcn_filters_from_A_hat[0][0].unsqueeze(0).float().to(device)
+    attr = batched_Attr_hat[0][0].unsqueeze(0).to(device)
+    A = batched_A_hat[0][0].unsqueeze(0).to(device)
+
+    # print(w.shape, attr.shape, A.shape, fil.shape)
+
+
+    alpha = 0.2
+    discriminator = Discriminator(modelArgs, device).to(device)
+
+    optimizer_w = optim.Adam([w], lr=0.001) ################################ adjust lr here!!!!!
+    optimizer_D = optim.Adam(discriminator.parameters(), lr = 0.001)
+
+    edit_z = (batched_z[0][0] + 0.2 * w)
+
+    generator = Decoder(modelArgs, trainArgs, device).to(device)
+
+    decoder_weight = dict(vae.decoder.named_parameters())
+    generator_weight = dict(generator.named_parameters())
+    for k in generator_weight.keys():
+        assert k in decoder_weight
+        generator_weight[k] = decoder_weight[k]
+    generator.eval()
+
+    A_hat, attr_hat = generator(edit_z)
+
+    ## first train discriminatorm fix w
+    # print(attr_hat.shape, fil.shape)
+    optimizer_D.zero_grad()
+    _, preds = discriminator(attr_hat, fil)
+    labels = torch.zeros(1).to(device)
+
+    loss_D = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
+    loss_D.backward()
+    optimizer_D.step()
+
+
+    ## then train w, fix discriminator parameters
+    discriminator.eval()
+    optimizer_w.zero_grad()
+    feature_true, _ = discriminator(attr_hat, fil) ### replace this with the edit(G(z)) attr & filter!
+    feature_gen, preds = discriminator(attr_hat, fil)
+    labels = torch.ones(1).to(device)
+    # print(preds)
+    loss_w = w_loss_func(labels, preds, feature_true, feature_gen, alpha=10, beta=20)
+    loss_w.backward()
+    optimizer_w.step()
+
+
+
+
+
+
+

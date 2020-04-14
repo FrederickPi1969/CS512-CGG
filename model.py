@@ -8,6 +8,39 @@ import numpy as np
 from tqdm import tqdm
 from networkx.generators import random_graphs
 
+class Discriminator(nn.Module):
+    def __init__(self, modelArgs, device):
+        super(Discriminator, self).__init__()
+        self.device = device
+        self.num_filters = modelArgs["gnn_filters"]
+        self.node_num = modelArgs["input_shape"][0][0]
+        self.attr_dim = modelArgs["input_shape"][0][1]
+
+        self.gcn1 = GCN(64, self.num_filters, self.device) # fix output_dim = 100
+        self.drop1 = nn.Dropout(0.1)
+        self.gcn2 = GCN(64, self.num_filters, self.device)
+
+
+        self.linear1 = nn.Linear(64, 32, bias=True)
+        self.linear2 = nn.Linear(32, 16, bias=True)
+        self.linear3 = nn.Linear(16, 1, bias = True)
+
+    def forward(self, x, graph_conv_filters):
+        o = self.gcn1(x, graph_conv_filters)
+        o = self.drop1(o)
+        o = self.gcn2(o, graph_conv_filters)
+        o = torch.mean(o, dim = 1) # mean
+        # o = torch.max(o, dim = 1) # max pooling
+        anchor = o
+        o = self.linear1(o)
+        o = F.leaky_relu(o)
+        o = self.linear2(o)
+        o = F.leaky_relu(o)
+        o = self.linear3(o)
+        o = torch.sigmoid(o)
+
+        return anchor, o
+
 
 class GCN(nn.Module):
     def __init__(self, output_dim, num_filters, device):
@@ -74,6 +107,7 @@ class Encoder(nn.Module):
         x = self.drop1(x)
         x = self.gcn2(x, graph_conv_filters)
         x = self.drop2(x)
+        # print(x.shape)
         x = torch.mean(x, dim=1) # node invariant layer
         # print(x.shape)
         x = self.linear1(x)
@@ -216,7 +250,7 @@ class VAE(nn.Module):
         return z_mean, z_log_var, z, A_hat, attr_hat
 
 
-def binary_cross_entropy(true, pred):
+def binary_cross_entropy_loss(true, pred):
     return -1 * torch.mean(true * torch.log(pred) + (1 - true) * torch.log(1 - pred))
 
 def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
@@ -247,7 +281,7 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
     # print(A_hat.flatten().requires_grad)
 
     # adj_reconstruction_loss = mse(A.flatten(), A_hat.flatten()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
-    adj_reconstruction_loss =  binary_cross_entropy(A.flatten(), A_hat.flatten()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
+    adj_reconstruction_loss =  binary_cross_entropy_loss(A.flatten(), A_hat.flatten()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
 
     # print(torch.min(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()))
     kl_loss = -0.5 * torch.sum((1 + z_log_var - z_mean.pow(2) - z_log_var.exp()), dim = -1) ######## ?
@@ -259,6 +293,15 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
 
     return loss
 
+
+# def discriminator_loss(pred, ):pass
+
+
+def w_loss_func(y, y_hat, feature_true, feature_fake, alpha, beta):
+    mse = nn.MSELoss(reduction="mean")
+    entropy_loss = binary_cross_entropy_loss(y.flatten(), y_hat.flatten())   ## modify w so as to maximize the probability of D being wrong!
+    feature_similarity_loss = mse(feature_true, feature_fake)
+    return alpha * entropy_loss + beta * feature_similarity_loss
 
 
 

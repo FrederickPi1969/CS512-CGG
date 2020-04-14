@@ -6,8 +6,7 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 from tqdm import tqdm
 from networkx.generators import random_graphs
-
-
+from matplotlib import pyplot as plt
 
 
 def normalize_adj_numpy(adj, symmetric=True):
@@ -64,9 +63,11 @@ def preprocess_adj_tensor(adj_tensor, symmetric=True):
 def preprocess_adj_tensor_with_identity(adj_tensor, symmetric=True):
     # expected torch tensor as adj_tensor!!!
     adj_tensor = adj_tensor.numpy()
+    # print("###", adj_tensor.shape)
     adj_out_tensor = []
     for i in range(adj_tensor.shape[0]):
         adj = adj_tensor[i]
+        # print("---", adj.shape)
         adj = adj + np.eye(adj.shape[0])
         adj = normalize_adj_numpy(adj, symmetric)
         adj = np.concatenate([np.eye(adj.shape[0]), adj], axis=0)
@@ -275,6 +276,7 @@ def generate_data(dataArgs):
     for i in tqdm(range(0, dataArgs["n_graph"]), leave=True, position=0):
 
         n = np.random.randint(1, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
+        # n = dataArgs["max_n_node"]
         p = np.random.uniform(dataArgs["p_range"][0], dataArgs["p_range"][1]) ## floating p from range
 
         g, a = generate_graph(n, p)

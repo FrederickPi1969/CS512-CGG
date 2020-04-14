@@ -4,6 +4,7 @@ from graph_operations import *
 import numpy as np
 import torch.optim as optim
 import torch
+from model_with_discriminator import *
 from matplotlib import pyplot as plt
 
 if __name__ == "__main__":
@@ -155,6 +156,8 @@ if __name__ == "__main__":
     # plt.plot(np.arange(len(validation_losses)), np.array(validation_losses))
     # plt.show()
 
+
+
     ########################## Discriminator Training #############################
     decoder = vae.decoder
     decoder.requires_grad = False
@@ -183,7 +186,7 @@ if __name__ == "__main__":
         for i in range(len(A_train)):
             discriminator.train()
             optimizer.zero_grad()
-            z = torch.tensor([[np.random.uniform(0, 1) for i in range(modelArgs['latent_dim'])] for i in range(A_train[0].shape[0])]).float()
+            z = torch.tensor([[np.random.uniform(0, 1) for _ in range(modelArgs['latent_dim'])] for i in range(A_train[0].shape[0])]).float()
             A, attr = decoder(z)
             # edit_graph function placeholder
             edit_A = A
@@ -203,7 +206,7 @@ if __name__ == "__main__":
 
         print("At Epoch {}, training loss {} ".format(e + 1, loss.item()))
         for i in range(len(A_validate)):
-            z = torch.tensor([[np.random.uniform(0, 1) for i in range(modelArgs['latent_dim'])] for i in range(A_validate[0].shape[0])]).float()
+            z = torch.tensor([[np.random.uniform(0, 1) for _ in range(modelArgs['latent_dim'])] for i in range(A_validate[0].shape[0])]).float()
             A, attr = decoder(z)
             graph_conv_filters = A_validate_mod[i].float()
             # edit_graph function placeholder
