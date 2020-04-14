@@ -23,22 +23,44 @@ def self_repetition(G, n = 1, linknode = 0):
     return new_graph
 
 # densify via triad closing
-def densify(G, target_density = 1):
+def densify_to(G, target_density = 1):
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
     while nx.transitivity(G) < min(target_density, 1):
         while centerlist[0][0] == 1:
             centerlist.pop(0)
-        candidates = combinations(list(G.nodes()), r = 2) - G.edges()
+        candidates = permutations(list(G.nodes()), r = 2) - G.edges()
         G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
         centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
 
-# densify via triad breaking
-def sparsify(G, target_density = 0):
+# densify via triad closing
+def densify(G, increase_density = 0.1):
+    target_density = nx.transitivity(G) + increase_density
+    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
+    while nx.transitivity(G) < min(target_density, 1):
+        while centerlist[0][0] == 1:
+            centerlist.pop(0)
+        candidates = permutations(list(G.nodes()), r = 2) - G.edges()
+        G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
+        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
+
+# sparsify via triad breaking
+def sparsify_to(G, target_density = 0):
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()])
     while nx.transitivity(G) > max(target_density, 0):
         while centerlist[0][0] == 0:
             centerlist.pop(0)
-        candidates = set(combinations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
+        candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
+        G.remove_edge(*sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in candidates])[0][1])
+        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist])
+
+# sparsify via triad breaking
+def sparsify(G, decrease_density = 0.1):
+    target_density = nx.transitivity(G) - increase_density
+    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()])
+    while nx.transitivity(G) > max(target_density, 0):
+        while centerlist[0][0] == 0:
+            centerlist.pop(0)
+        candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
         G.remove_edge(*sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in candidates])[0][1])
         centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist])
 
