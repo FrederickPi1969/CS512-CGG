@@ -20,13 +20,88 @@ def edit_graph(A, dataArgs, modelArgs, **args):
             graph = graph.numpy().reshape(dataArgs['max_n_node'], dataArgs['max_n_node'])
             graph = nx.from_numpy_matrix(graph)
             edited_list.append(graph)
+    else:
+        graph = A.numpy().reshape(dataArgs['max_n_node'], dataArgs['max_n_node'])
+        edited_list = [nx.from_numpy_matrix(graph)]
 
     for i,graph in enumerate(edited_list):
         if modelArgs['edit_method'] == 'densify':
-            densify(graph)
+            increase_density = 0.1
+            if args.get('increase_density') != None:
+                increase_density = args.get('increase_density')
+            densify(graph, increase_density)
         elif modelArgs['edit_method'] == 'sparsify':
-            sparsify(graph)
-        else
+            decrease_density = 0.1
+            if args.get('decrease_density') != None:
+                decrease_density = args.get('decrease_density')
+            sparsify(graph, decrease_density)
+        elif modelArgs['edit_method'] == 'self_multiply':
+            n = 1
+            if args.get('n') != None:
+                n = args.get('n')
+            self_multiply(graph, n)
+        elif modelArgs['edit_method'] == 'self_repetition':
+            n = 1
+            linknode = 0
+            if args.get('n') != None:
+                n = args.get('n')
+            if args.get('linknode') != None:
+                linknode = args.get('linknode')
+            self_multiply(graph, n, linknode)
+        elif modelArgs['edit_method'] == 'densify_to':
+            target_density = 1
+            if args.get('target_density') != None:
+                target_density = args.get('target_density')
+            densify_to(graph, target_density)
+        elif modelArgs['edit_method'] == 'sparsify_to':
+            target_density = 0
+            if args.get('target_density') != None:
+                target_density = args.get('target_density')
+            sparsify_to(graph, target_density)
+        elif modelArgs['edit_method'] == 'add_edge_coherent':
+            n = 1
+            descending = True
+            if args.get('n') != None:
+                n = args.get('n')
+            if args.get('descending') != None:
+                descending = args.get('descending')
+            add_edge_coherent(graph, n, descending)
+        elif modelArgs['edit_method'] == 'remove_edge_coherent':
+            n = 1
+            descending = False
+            if args.get('n') != None:
+                n = args.get('n')
+            if args.get('descending') != None:
+                descending = args.get('descending')
+            remove_edge_coherent(graph, n, descending)
+        elif modelArgs['edit_method'] == 'remove_edge_difference':
+            n = 1
+            if args.get('n') != None:
+                n = args.get('n')
+            remove_edge_difference(graph, n)
+        elif modelArgs['edit_method'] == 'add_node':
+            namelist = None
+            n = 1
+            m = 1
+            descending = True
+            if args.get('n') != None:
+                n = args.get('n')
+            if args.get('m') != None:
+                m = args.get('m')
+            if args.get('descending') != None:
+                descending = args.get('descending')
+            if args.get('namelist') != None:
+                namelist = args.get('namelist')
+            add_node(graph, namelist, n, m, descending)
+        elif modelArgs['edit_method'] == 'remove_node':
+            n = 1
+            descending = False
+            if args.get('n') != None:
+                n = args.get('n')
+            if args.get('descending') != None:
+                descending = args.get('descending')
+            remove_node(graph, n, descending)
+        else:
             raise ValueError
         graph = nx.to_numpy_matrix(graph)
         edited_list[i] = graph

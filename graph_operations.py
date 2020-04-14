@@ -3,7 +3,7 @@ import networkx as nx
 import string
 import random
 import queue
-from itertools import combinations
+from itertools import combinations, permutations
 
 # self multiply through kronecker product
 def self_multiply(G, n = 1):
