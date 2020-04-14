@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
     number_of_latent_variables= "10" #@param [1, 2, 3, 4, 5]
     modelArgs["latent_dim"] = int(number_of_latent_variables)
-
+    modelArgs["edit_method"] = 'densify' #@param ['sparsify', 'densify', 'add_edge_coherent', 'remove_edge_coherent']
     trainArgs = dict()
 
     weight_graph_reconstruction_loss = "5" #@param [0, 1, 2, 3, 5, 10, 20]

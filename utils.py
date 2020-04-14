@@ -2,13 +2,39 @@ import networkx as nx
 import torch
 import scipy.sparse as sp
 import torch.nn as nn
-from sklearn.model_selection import train_test_split
 import numpy as np
+from graph_operations import *
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from networkx.generators import random_graphs
 
 
+def edit_graph(A, dataArgs, modelArgs, **args):
+    shape_list = A.shape
+    edited_list = []
+    if len(A.shape) > 2:
+        if A.shape[-1] == 1:
+            A = A.squeeze(-1)
+    if len(A.shape) > 2:
+        for graph in A:
+            graph = graph.numpy().reshape(dataArgs['max_n_node'], dataArgs['max_n_node'])
+            graph = nx.from_numpy_matrix(graph)
+            edited_list.append(graph)
 
+    for i,graph in enumerate(edited_list):
+        if modelArgs['edit_method'] == 'densify':
+            densify(graph)
+        elif modelArgs['edit_method'] == 'sparsify':
+            sparsify(graph)
+        else
+            raise ValueError
+        graph = nx.to_numpy_matrix(graph)
+        edited_list[i] = graph
+    edited_list = np.array(edited_list).reshape(shape_list)
+    edit_A = torch.from_numpy(edited_list).float()
+    A = A.unsqueeze(-1)
+    assert A.shape == edit_A.shape
+    return edit_A
 
 def normalize_adj_numpy(adj, symmetric=True):
     if symmetric:
