@@ -8,6 +8,62 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from networkx.generators import random_graphs
 
+def graph_mapping(A, dataArgs, modelArgs):
+    batch = []
+    A = A.detach().numpy()
+    if len(A.shape) > 2:
+        for graph in A:
+            batch.append(graph)
+    else:
+        batch = [A]
+    batch = np.array(batch)
+    for i in range(len(batch)):
+        graph = batch[i].reshape(dataArgs['max_n_node'], dataArgs['max_n_node'])
+        new_graph = np.zeros((dataArgs['max_n_node'], dataArgs['max_n_node']))
+        for j,row in enumerate(graph):
+            maxval = max(graph[j])
+            minval = min(graph[j])
+            threshold = (maxval + minval) / 2
+
+            for k in range(j, len(row)):
+                colmaxval = max(graph[:][k])
+                colminval = min(graph[:][k])
+                colthreshold = (colmaxval + colminval) / 2
+                inverse_maxval = max(graph[k])
+                inverse_minval = min(graph[k])
+                inverse_threshold = (inverse_maxval + inverse_minval) / 2
+                inverse_colmaxval = max(graph[:][j])
+                inverse_colminval = min(graph[:][j])
+                inverse_colthreshold = (inverse_colmaxval + inverse_colminval) / 2
+
+                vote = []
+                vote.append(graph[j][k] >= threshold)
+                vote.append(graph[j][k] >= colthreshold)
+                vote.append(graph[k][j] >= inverse_threshold)
+                vote.append(graph[k][j] >= inverse_colthreshold)
+                if sum(vote) >= 2:
+                    new_graph[j][k] = 1
+                    new_graph[k][j] = 1
+                else:
+                    new_graph[j][k] = 0
+                    new_graph[k][j] = 0
+
+        graph = new_graph
+
+        real_num_of_node = int(dataArgs['max_n_node'])
+        for row in range(dataArgs['max_n_node']):
+            if graph[row][row] != 1:
+                real_num_of_node = row
+                break
+        valid_subgraph = graph[:real_num_of_node, :real_num_of_node]
+        graph = np.zeros((dataArgs['max_n_node'], dataArgs['max_n_node']))
+        graph[:real_num_of_node, :real_num_of_node] = valid_subgraph
+        graph = graph.reshape((dataArgs['max_n_node'], dataArgs['max_n_node'], 1))
+        batch[i] = graph
+    batch = np.array(batch)
+    batch = torch.from_numpy(batch)
+    assert batch.shape == A.shape
+    return batch
 
 def edit_graph(A, dataArgs, modelArgs, **args):
     shape_list = A.shape
