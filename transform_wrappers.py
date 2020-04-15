@@ -26,9 +26,9 @@ class DensityTransform:
     # transform graph based on alpha
     def get_target_graph(self, alpha, graph):
         if alpha > 0:
-            return densify(graph, alpha)
+            densify(graph, alpha)
         else: 
-            return sparsify(graph, 0 - alpha)
+            sparsify(graph, 0 - alpha)
 
 ## transform via adding edges
 class EdgeTransform:
@@ -51,9 +51,9 @@ class EdgeTransform:
     # transform graph based on alpha
     def get_target_graph(self, alpha, graph):
         if alpha > 0:
-            return add_edge_coherent(graph, int(round(alpha)))
+            add_edge_coherent(graph, int(round(alpha)))
         else: 
-            return remove_edge_coherent(graph, int(round(0 - alpha)))
+            remove_edge_coherent(graph, int(round(0 - alpha)))
 
 ## transform via adding nodes
 class NodeTransform:
@@ -76,9 +76,9 @@ class NodeTransform:
     # transform graph based on alpha
     def get_target_graph(self, alpha, graph):
         if alpha > 0:
-            return add_node(graph, n = int(round(alpha)))
+            add_node(graph, n = int(round(alpha)))
         else: 
-            return remove_node(graph, n = int(round(0 - alpha)))
+            remove_node(graph, n = int(round(0 - alpha)))
 
 class KroneckerTransform:
     def __init__(self, max_graph_nodes):
