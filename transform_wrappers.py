@@ -14,24 +14,24 @@ class DensityTransform:
         alpha_val = np.random.uniform(0, 1)
         coin = np.random.uniform(0, 1)
         if coin <= 0.5:
-            scale = 1 - max([nx.transitivity(nx.convert_graph.from_numpy_matrix(g)) for g in graphs_adj_matrices])
+            scale = 1 - max([nx.transitivity(nx.convert_matrix.from_numpy_matrix(g)) for g in graphs_adj_matrices])
             alpha_val *= scale
-            return alpha_val
+            return (alpha_val, alpha_val)
         else: 
-            scale = max([nx.transitivity(nx.convert_graph.from_numpy_matrix(g)) for g in graphs_adj_matrices])
+            scale = max([nx.transitivity(nx.convert_matrix.from_numpy_matrix(g)) for g in graphs_adj_matrices])
             alpha_val *= scale
             alpha_val = -alpha_val
-        return alpha_val, alpha_val
+            return (alpha_val, alpha_val)
 
 
     # transform graph based on alpha
     def get_target_graph(self, alpha, graph_adj_tensors):
         graphs_adj_matrices = list(np.squeeze(graph_adj_tensors.numpy()))
         if alpha > 0:
-            edited_adj_matrices = [nx.adjacency_matrix(densify(nx.convert_graph.from_numpy_matrix(g), alpha)).todense() for g in graphs_adj_matrices]
+            edited_adj_matrices = [nx.adjacency_matrix(densify(nx.convert_matrix.from_numpy_matrix(g), alpha)).todense() for g in graphs_adj_matrices]
             return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices)), -1)
         else: 
-            edited_adj_matrices = [nx.adjacency_matrix(sparsify(nx.convert_graph.from_numpy_matrix(g), 0 - alpha)).todense() for g in graphs_adj_matrices]
+            edited_adj_matrices = [nx.adjacency_matrix(sparsify(nx.convert_matrix.from_numpy_matrix(g), 0 - alpha)).todense() for g in graphs_adj_matrices]
             torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices)), -1)
             
 
