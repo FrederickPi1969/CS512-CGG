@@ -1,8 +1,8 @@
 from utils import *
 from model import *
 import numpy as np
-import torch.optim as optim
 import torch
+import torch.optim as optim
 from transform_wrappers import *
 from matplotlib import pyplot as plt
 
@@ -312,6 +312,15 @@ if __name__ == "__main__":
             attr_hat = batched_Attr_hat[i].float().to(device)
             A_hat = batched_A_hat[i].to(device)
             z = batched_z[i].to(device)
+
+            ## discretize
+            A_hat = A_hat.numpy()
+            A_hat_shape = np.shape(A_hat)
+            A_hat_vector = np.matrix.flatten(A_hat)
+            A_hat_vector = [random.random() < x for x in A_hat_vector]
+            A_hat = np.reshape(np.asarray(A_hat_vector), A_hat_shape)
+            A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
+            
 
             alpha_gen, alpha_edit = transform.get_train_alpha(A_hat) # input continuous as default, need discretization!!!
 
