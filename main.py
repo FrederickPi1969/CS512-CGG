@@ -178,6 +178,7 @@ if __name__ == "__main__":
         validation_losses.append(loss_cum / len(Attr_validate))
 
     plt.figure()
+    plt.title("VAE Loss")
     plt.plot(np.arange(len(train_losses)), np.array(train_losses), label = "train loss")
     plt.plot(np.arange(len(validation_losses)), np.array(validation_losses), label = "test loss")
     plt.legend()
@@ -257,6 +258,7 @@ if __name__ == "__main__":
 
 
     plt.figure()
+    plt.title("Discriminator Loss")
     plt.plot(np.arange(len(loss_train)), np.array(loss_train), label = "train loss")
     plt.plot(np.arange(len(loss_test)), np.array(loss_test), label = "test loss")
     plt.legend()
@@ -271,7 +273,7 @@ if __name__ == "__main__":
 
     # w = torch.randn_like(batched_z[0][0], requires_grad=True).unsqueeze(0).to(device)
     w = torch.tensor(np.random.normal(0.0, 0.1, [1, modelArgs["latent_dim"]]),
-                 device='cuda', dtype=torch.float32, requires_grad=True)
+                 device=device, dtype=torch.float32, requires_grad=True)
 
     # print(w.shape, attr.shape, A.shape, fil.shape)
 
@@ -303,6 +305,7 @@ if __name__ == "__main__":
     transform = DensityTransform()
     w_epochs = 10  ################################# adjust epoch here!!!
     discriminator.eval()
+    loss_train = []
     for e in range(w_epochs):
         loss_cum = 0
         for i in range(len(batched_A_hat)):
@@ -314,7 +317,7 @@ if __name__ == "__main__":
             z = batched_z[i].to(device)
 
             ## discretize
-            A_hat = A_hat.numpy()
+            A_hat = A_hat.cpu().numpy()
             A_hat_shape = np.shape(A_hat)
             A_hat_vector = np.matrix.flatten(A_hat)
             A_hat_vector = [random.random() < x for x in A_hat_vector]
@@ -349,7 +352,17 @@ if __name__ == "__main__":
 
             optimizer_w.step()
 
-        print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_z_test)))
+        print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
+        loss_train.append(loss_cum / len(batched_A_hat))
+
+    plt.figure()
+    plt.title("w Loss")
+    plt.plot(np.arange(len(loss_train)), np.array(loss_train), label = "train loss")
+    plt.show()
+
+
+
+
 
 
 
