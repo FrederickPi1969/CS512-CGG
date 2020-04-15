@@ -3,6 +3,7 @@ from model import *
 import numpy as np
 import torch.optim as optim
 import torch
+from transform_wrappers import *
 from matplotlib import pyplot as plt
 
 if __name__ == "__main__":
@@ -299,6 +300,7 @@ if __name__ == "__main__":
     print("\n\n=================================================================================")
     print("start w training...")
 
+    transform = DensityTransform()
     w_epochs = 10  ################################# adjust epoch here!!!
     discriminator.eval()
     for e in range(w_epochs):
@@ -311,8 +313,13 @@ if __name__ == "__main__":
             A_hat = batched_A_hat[i].to(device)
             z = batched_z[i].to(device)
 
+            alpha_gen, alpha_edit = transform.get_train_alpha(A_hat) # input continuous as default, need discretization!!!
+
+
+            # from_numpy
             ## first get edit and D(edit(G(z)))
-            edit_A, edit_attr = generator(z + alpha * w)  ### replace this with the edit(G(z)) attr & filter!
+            edit_attr = attr_hat
+            edit_A = transform.get_target_graph(alpha_edit, A_hat)  ### replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
             temp = edit_A.detach().cpu()
             edit_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
             feature_edit, _ = discriminator(edit_attr.float(), edit_fil.float())

@@ -3,6 +3,7 @@ import networkx as nx
 import string
 import random
 import queue
+import copy
 from itertools import combinations, permutations
 
 # self multiply through kronecker product
@@ -62,7 +63,7 @@ def sparsify_to(Graph, target_density = 0):
 # sparsify via triad breaking
 def sparsify(Graph, decrease_density = 0.1):
     G = copy.deepcopy(Graph)
-    target_density = nx.transitivity(G) - increase_density
+    target_density = nx.transitivity(G) - decrease_density
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()])
     while nx.transitivity(G) > max(target_density, 0):
         while centerlist[0][0] == 0:
