@@ -189,7 +189,7 @@ def dblp():
 
     return G
 
-def sample_subgraph(G, target_size = 20, start = None):
+def sample_subgraph(G, target_size = 20, max_size = 24, start = None):
     subgraph = nx.null_graph()
     initial_node = start
     if not start or start not in G.nodes():
@@ -209,6 +209,8 @@ def sample_subgraph(G, target_size = 20, start = None):
         if roll > new_node[1]:
             continue
         subgraph.add_node(new_node[0])
+        if len(subgraph) >= max_size:
+            break
         for neighbor in set(G.neighbors(new_node[0])) - seen:
             seen.add(neighbor)
             select_prob = max(0, 1 - ((len(subgraph) + prob_sum) / target_size))
