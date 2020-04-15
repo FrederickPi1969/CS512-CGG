@@ -5,6 +5,7 @@ import torch
 import torch.optim as optim
 from transform_wrappers import *
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 if __name__ == "__main__":
 
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "1000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     A, Attr, Param, Topol = generate_data(dataArgs)
@@ -45,7 +46,7 @@ if __name__ == "__main__":
 
     epochs = "20" #@param [10, 20, 50]
     trainArgs["epochs"] = int(epochs)
-    batch_size = "1024" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
+    batch_size = "512" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
     trainArgs["batch_size"] = int(batch_size)
     early_stop = "2" #@param [1, 2, 3, 4, 10]
     trainArgs["early_stop"] = int(early_stop)
@@ -168,7 +169,7 @@ if __name__ == "__main__":
                     temp = A_hat.detach().cpu()
                     batched_gcn_filters_from_A_hat_test.append(preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False))
 
-                
+
                 # if e == trainArgs["epochs"] - 1:
                 #     for j in range(A.shape[0]):
                         # print(A[j][0].squeeze(-1))
@@ -211,11 +212,11 @@ if __name__ == "__main__":
             train_fil = A_train_mod[i].float().to(device)
 
             optimizer_D.zero_grad()
-            
+
             _, preds = discriminator(attr_hat, fil)
-            labels = torch.zeros(fil.shape[0]).to(device) 
+            labels = torch.zeros(fil.shape[0]).to(device)
             loss_D_gen = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
-            
+
             _, preds = discriminator(attr, train_fil)
             labels = torch.ones(fil.shape[0]).to(device)
             loss_D_true = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
@@ -303,12 +304,12 @@ if __name__ == "__main__":
     print("start w training...")
 
     transform = DensityTransform()
-    w_epochs = 10  ################################# adjust epoch here!!!
+    w_epochs = 5  ################################# adjust epoch here!!!
     discriminator.eval()
     loss_train = []
     for e in range(w_epochs):
         loss_cum = 0
-        for i in range(len(batched_A_hat)):
+        for i in tqdm(range(len(batched_A_hat))):
             optimizer_w.zero_grad()
 
             fil = batched_gcn_filters_from_A_hat[i].float().to(device)
@@ -323,7 +324,7 @@ if __name__ == "__main__":
             A_hat_vector = [random.random() < x for x in A_hat_vector]
             A_hat = np.reshape(np.asarray(A_hat_vector), A_hat_shape)
             A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
-            
+
 
             alpha_gen, alpha_edit = transform.get_train_alpha(A_hat) # input continuous as default, need discretization!!!
 
@@ -338,9 +339,7 @@ if __name__ == "__main__":
 
 
             # Then get G(z + aw) and D(G(z + aw))
-            alpha = np.random.uniform(0.1,0.3)
-            log_alpha = torch.tensor(np.log(alpha)).to(device)
-            gen_A, gen_attr = generator(z + alpha * w)
+            gen_A, gen_attr = generator(z + alpha_gen * w)
             temp = gen_A.detach().cpu()
             gen_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
             feature_gen, preds = discriminator(gen_attr.float(), gen_fil.float())
@@ -349,8 +348,8 @@ if __name__ == "__main__":
             loss_w = w_loss_func(labels, preds, feature_edit, feature_gen, alpha=10, beta=20)
             loss_w.backward()
             loss_cum += loss_w.item()
-
             optimizer_w.step()
+            print(w.grad)
 
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
         loss_train.append(loss_cum / len(batched_A_hat))
