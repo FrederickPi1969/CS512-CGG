@@ -23,7 +23,8 @@ def self_repetition(G, n = 1, linknode = 0):
     return new_graph
 
 # densify via triad closing
-def densify_to(G, target_density = 1):
+def densify_to(Graph, target_density = 1):
+    G = copy.deepcopy(Graph)
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
     while nx.transitivity(G) < min(target_density, 1):
         while centerlist[0][0] == 1:
@@ -31,9 +32,11 @@ def densify_to(G, target_density = 1):
         candidates = permutations(list(G.nodes()), r = 2) - G.edges()
         G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
         centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
+    return G
 
 # densify via triad closing
-def densify(G, increase_density = 0.1):
+def densify(Graph, increase_density = 0.1):
+    G = copy.deepcopy(Graph)
     target_density = nx.transitivity(G) + increase_density
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
     while nx.transitivity(G) < min(target_density, 1):
@@ -42,9 +45,11 @@ def densify(G, increase_density = 0.1):
         candidates = permutations(list(G.nodes()), r = 2) - G.edges()
         G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
         centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
+    return G
 
 # sparsify via triad breaking
-def sparsify_to(G, target_density = 0):
+def sparsify_to(Graph, target_density = 0):
+    G = copy.deepcopy(Graph)
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()])
     while nx.transitivity(G) > max(target_density, 0):
         while centerlist[0][0] == 0:
@@ -52,9 +57,11 @@ def sparsify_to(G, target_density = 0):
         candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
         G.remove_edge(*sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in candidates])[0][1])
         centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist])
+    return G
 
 # sparsify via triad breaking
-def sparsify(G, decrease_density = 0.1):
+def sparsify(Graph, decrease_density = 0.1):
+    G = copy.deepcopy(Graph)
     target_density = nx.transitivity(G) - increase_density
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()])
     while nx.transitivity(G) > max(target_density, 0):
@@ -63,34 +70,56 @@ def sparsify(G, decrease_density = 0.1):
         candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
         G.remove_edge(*sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in candidates])[0][1])
         centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist])
+    return G
 
-def add_edge_coherent(G, n = 1, descending = True):
-    edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in combinations(list(G.nodes()), r = 2) - G.edges()], reverse = descending)
+def add_edge_coherent(Graph, n = 1, descending = True):
+    G = copy.deepcopy(Graph)
+    edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in permutations(list(G.nodes()), r = 2) - G.edges()], reverse = descending)
     for j in range(min(n, len(edgelist))):
         G.add_edge(*edgelist[j][1])
+    return G
 
-def remove_edge_coherent(G, n = 1, descending = False):
+def remove_edge_coherent(Graph, n = 1, descending = False):
+    G = copy.deepcopy(Graph)
     edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in G.edges()], reverse = descending)
     for j in range(min(n, len(edgelist))):
         G.remove_edge(*edgelist[j][1])
 
-def remove_edge_difference(G, n = 1):
+    for node in G.nodes():
+        if G.degree(node) == 0:
+            G.remove_node(node)
+    return G
+
+def remove_edge_difference(Graph, n = 1):
+    G = copy.deepcopy(Graph)
     edgelist = sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in G.edges()])
     for j in range(min(n, len(edgelist))):
         G.remove_edge(*edgelist[j][1])
         
+    for node in G.nodes():
+        if G.degree(node) == 0:
+            G.remove_node(node)
+    return G
 
-def add_node(G, namelist = None, n = 1, m = 1, descending = True):
+def add_node(Graph, namelist = None, n = 1, m = 1, descending = True):
+    G = copy.deepcopy(Graph)
     namelist = namelist if namelist else [len(G) + i for i in range(n)]
     for i in range(min(n, len(namelist))):
         nodelist = sorted([(G.degree[i], i) for i in G.nodes()], reverse = descending)
         G.add_node(namelist[i])
         for j in range(min(m, len(nodelist))):
             G.add_edge(namelist[i], nodelist[j][1])
+    return G
 
 
-def remove_node(G, n = 1, descending = False):
+def remove_node(Graph, n = 1, descending = False):
+    G = copy.deepcopy(Graph)
     nodelist = sorted([(G.degree[i], i) for i in G.nodes()], reverse = descending)
     print(nodelist)
     for j in range(min(n, len(nodelist))):
         G.remove_node(nodelist[j][1])
+
+    for node in G.nodes():
+        if G.degree(node) == 0:
+            G.remove_node(node)
+    return G
