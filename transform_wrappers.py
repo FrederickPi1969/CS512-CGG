@@ -32,7 +32,7 @@ class DensityTransform:
             return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices)), -1)
         else: 
             edited_adj_matrices = [nx.adjacency_matrix(sparsify(nx.convert_matrix.from_numpy_matrix(g), 0 - alpha)).todense() for g in graphs_adj_matrices]
-            torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices)), -1)
+            return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices)), -1)
             
 
 ## transform via adding edges
