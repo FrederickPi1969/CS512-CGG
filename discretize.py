@@ -55,7 +55,7 @@ class Discretizer(object):
 
     def hard_threshold(self, threshold=0.4):
         res = copy.deepcopy(self.A_hat)
-        batch_size = self.A_hat[0].shape[0]
+        batch_size = self.A_hat.shape[0]
         for i in range(batch_size):
             res[i][self.A_hat[i] > threshold] = 1
             res[i][self.A_hat[i] <= threshold] = 0
@@ -64,7 +64,7 @@ class Discretizer(object):
 
     def random_sampling(self):
         res = copy.deepcopy(self.A_hat)
-        batch_size = self.A_hat[0].shape[0]
+        batch_size = self.A_hat.shape[0]
         for i in range(batch_size):
             res[i] = [[random.random() < x for x in row] for row in self.A_hat[i]]
         assert res.shape == self.A.shape
@@ -72,7 +72,6 @@ class Discretizer(object):
 
     def random_forest(self, n_estimators=1000, rf_A=None, rf_A_hat=None):
         res = []
-        batch_size = self.A_hat[0].shape[0]
         if self.pretrain == True:
             clf = pickle.load(open(self.filename, 'rb'))
         else:
