@@ -3,9 +3,12 @@ from model import *
 import numpy as np
 import torch
 import torch.optim as optim
+# from transform_wrappers_multiprocessing import *
 from transform_wrappers import *
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+
+
 
 if __name__ == "__main__":
 
@@ -169,6 +172,7 @@ if __name__ == "__main__":
                     temp = A_hat.detach().cpu()
                     batched_gcn_filters_from_A_hat_test.append(preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False))
 
+                print(torch.mean(list(vae.parameters())[0].grad))
 
                 # if e == trainArgs["epochs"] - 1:
                 #     for j in range(A.shape[0]):
@@ -183,7 +187,7 @@ if __name__ == "__main__":
     plt.plot(np.arange(len(train_losses)), np.array(train_losses), label = "train loss")
     plt.plot(np.arange(len(validation_losses)), np.array(validation_losses), label = "test loss")
     plt.legend()
-    plt.show()
+    # plt.show()
 
 
 
@@ -263,7 +267,7 @@ if __name__ == "__main__":
     plt.plot(np.arange(len(loss_train)), np.array(loss_train), label = "train loss")
     plt.plot(np.arange(len(loss_test)), np.array(loss_test), label = "test loss")
     plt.legend()
-    plt.show()
+    # plt.show()
 
 
 
@@ -304,7 +308,7 @@ if __name__ == "__main__":
     print("start w training...")
 
     transform = DensityTransform()
-    w_epochs = 5  ################################# adjust epoch here!!!
+    w_epochs = 10  ################################# adjust epoch here!!!
     discriminator.eval()
     loss_train = []
     for e in range(w_epochs):
