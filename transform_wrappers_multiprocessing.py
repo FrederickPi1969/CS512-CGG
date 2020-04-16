@@ -8,11 +8,11 @@ import multiprocessing
 
 class DensityTransform:
     def __init__(self):
+        self.alpha = 0
         try:
             self.cpus = multiprocessing.cpu_count()
-            self.alpha = 0
         except NotImplementedError:
-            cpus = 2
+            self.cpus = 1
 
     def transitivity_batch(self, g):
         return nx.transitivity(nx.convert_matrix.from_numpy_matrix(g))
@@ -46,9 +46,6 @@ class DensityTransform:
             self.alpha = 0 - alpha
             edited_adj_matrices = multiprocessing.Pool(processes = self.cpus).map(self.sparsify_batch, graphs_adj_matrices)
             return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices)), -1)
-
-
-                    
 
 ## transform via adding edges
 class EdgeTransform:
