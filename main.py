@@ -2,11 +2,13 @@ from utils import *
 from model import *
 import numpy as np
 import torch
+import sys
 import torch.optim as optim
 # from transform_wrappers_multiprocessing import *
 from transform_wrappers import *
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+from discretize import *
 
 
 
@@ -27,7 +29,7 @@ if __name__ == "__main__":
     node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "1000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     A, Attr, Param, Topol = generate_data(dataArgs)
@@ -319,16 +321,15 @@ if __name__ == "__main__":
             fil = batched_gcn_filters_from_A_hat[i].float().to(device)
             attr_hat = batched_Attr_hat[i].float().to(device)
             A_hat = batched_A_hat[i].to(device)
+            A = A_train[i]
             z = batched_z[i].to(device)
 
             ## discretize
-            A_hat = A_hat.cpu().numpy()
-            A_hat_shape = np.shape(A_hat)
-            A_hat_vector = np.matrix.flatten(A_hat)
-            A_hat_vector = [random.random() < x for x in A_hat_vector]
-            A_hat = np.reshape(np.asarray(A_hat_vector), A_hat_shape)
+            A = A_train[i].cpu().numpy().squeeze(-1)
+            A_hat = A_hat.cpu().numpy().squeeze(-1)
+            discretizer = Discretizer(A, A_hat)
+            A_hat = discretizer.discretize('random_forest', rf_A=A_train, rf_A_hat=batched_A_hat)
             A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
-
 
             alpha_gen, alpha_edit = transform.get_train_alpha(A_hat) # input continuous as default, need discretization!!!
 
