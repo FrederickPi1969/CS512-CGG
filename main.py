@@ -32,6 +32,7 @@ if __name__ == "__main__":
     number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
+    dataArgs["upper_triangular"] = False
     A, Attr, Param, Topol = generate_data(dataArgs)
     g, a, attr = unpad_data(A[0], Attr[0])
 

@@ -440,7 +440,10 @@ def generate_data(dataArgs):
         g, a, attr = sort_adjacency(g, a, attr) ## extended BOSAM sorting algorithm
         a, attr = pad_data(a, attr, dataArgs["max_n_node"]) ## pad adjacency matrix to allow less nodes than max_n_node and fill diagonal
 
-        A[i] = a
+        if dataArgs["upper_triangular"]:
+            A[i] = np.triu(a.reshape(dataArgs["max_n_node"], dataArgs["max_n_node"])).reshape(dataArgs["max_n_node"], dataArgs["max_n_node"], 1)
+        else:
+            A[i] = a
         Attr[i] = attr
         Param[i] = [n,p,attr_param]
         Topol[i] = compute_topol(g)
