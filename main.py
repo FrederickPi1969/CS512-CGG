@@ -309,8 +309,8 @@ if __name__ == "__main__":
     print("\n\n=================================================================================")
     print("start w training...")
 
-    transform = DensityTransform()
-    w_epochs = 10  ################################# adjust epoch here!!!
+    transform = EdgeTransform()
+    w_epochs = 100  ################################# adjust epoch here!!!
     discriminator.eval()
     loss_train = []
     for e in range(w_epochs):
@@ -328,7 +328,7 @@ if __name__ == "__main__":
             A = A_train[i].cpu().numpy().squeeze(-1)
             A_hat = A_hat.cpu().numpy().squeeze(-1)
             discretizer = Discretizer(A, A_hat)
-            A_hat = discretizer.discretize('random_forest', rf_A=A_train, rf_A_hat=batched_A_hat)
+            A_hat = discretizer.discretize('vote_mapping', rf_A=A_train, rf_A_hat=batched_A_hat)
             A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
 
             alpha_gen, alpha_edit = transform.get_train_alpha(A_hat) # input continuous as default, need discretization!!!

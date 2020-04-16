@@ -366,7 +366,6 @@ def generate_graph(n, p):
 
     return g, a
 
-
 def generate_attr(g, n, p, dataArgs):
     attr, attr_param = None, None
     if dataArgs["node_attr"] == "none":
@@ -445,6 +444,39 @@ def generate_data(dataArgs):
         Param[i] = [n,p,attr_param]
         Topol[i] = compute_topol(g)
     print('done')
+    return A, Attr, Param, Topol
+
+def generate_dblp_data(dataArgs, load = False, save = True):
+    if load:
+        return *(pickle.load(open("dblp_subgraphs", 'rb')))
+
+    dblp_graph = dblp()
+
+    A = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], dataArgs["max_n_node"], 1)) ## graph data
+    Attr = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], 1)) ## graph data
+    Param = np.zeros((dataArgs["n_graph"], 3)) ## generative parameters
+    Topol = np.zeros((dataArgs["n_graph"], 5)) ## topological properties
+
+    print("\n============= Generating Data ===========================")
+    for i in tqdm(range(0, dataArgs["n_graph"]), leave=True, position=0):
+
+        n = np.random.randint(1, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
+
+        g, a = sample_subgraph(dblp_graph, target_size = n, max_size = dataArgs["max_n_node"], start = None)
+        n = len(g)
+        p = nx.transitivity(g)
+        g, attr, attr_param = generate_attr(g, n, p, dataArgs)
+
+        g, a, attr = sort_adjacency(g, a, attr) ## extended BOSAM sorting algorithm
+        a, attr = pad_data(a, attr, dataArgs["max_n_node"]) ## pad adjacency matrix to allow less nodes than max_n_node and fill diagonal
+
+        A[i] = a
+        Attr[i] = attr
+        Param[i] = [n,p,attr_param]
+        Topol[i] = compute_topol(g)
+    print('done')
+    if save:
+        pickle.dump((A, Attr, Param, Topol), open("dblp_subgraphs", 'wb'))
     return A, Attr, Param, Topol
 
 

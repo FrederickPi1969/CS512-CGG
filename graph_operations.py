@@ -81,6 +81,21 @@ def sparsify(Graph, decrease_density = 0.1):
         centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist])
     return G
 
+# sparsify via triad breaking
+def sparsify_coherent_test(Graph, decrease_density = 0.1):
+    G = copy.deepcopy(Graph)
+    target_density = nx.transitivity(G) - decrease_density
+    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
+    while nx.transitivity(G) > max(target_density, 0):
+        while centerlist and centerlist[0][0] == 0:
+            centerlist.pop(0)
+        if not centerlist:
+            break
+        candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
+        G.remove_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
+        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
+    return G
+
 def add_edge_coherent(Graph, n = 1, descending = True):
     G = copy.deepcopy(Graph)
     edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in permutations(list(G.nodes()), r = 2) - G.edges()], reverse = descending)
@@ -88,15 +103,15 @@ def add_edge_coherent(Graph, n = 1, descending = True):
         G.add_edge(*edgelist[j][1])
     return G
 
-def remove_edge_coherent(Graph, n = 1, descending = False):
+def remove_edge_coherent(Graph, n = 1, descending = True):
     G = copy.deepcopy(Graph)
     edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in G.edges()], reverse = descending)
     for j in range(min(n, len(edgelist))):
         G.remove_edge(*edgelist[j][1])
 
-    for node in G.nodes():
-        if G.degree(node) == 0:
-            G.remove_node(node)
+    ##for node in G.nodes():
+    ##    if G.degree(node) == 0:
+    ##        G.remove_node(node)
     return G
 
 def remove_edge_difference(Graph, n = 1):
