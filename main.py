@@ -23,7 +23,7 @@ if __name__ == "__main__":
     maximum_number_of_nodes_n = "12" #@param [12, 24, 30, 48]
     dataArgs["max_n_node"] = int(maximum_number_of_nodes_n)
 
-    range_of_linkage_probability_p = "0.0, 1.0" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
+    range_of_linkage_probability_p = "0.5, 0.5" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
     dataArgs["p_range"] = [float(range_of_linkage_probability_p.split(",")[0]), float(range_of_linkage_probability_p.split(",")[1])]
 
     node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
@@ -233,6 +233,7 @@ if __name__ == "__main__":
             optimizer_D.step()
 
         loss_train.append(loss_cum / len(batched_z))
+        print(len(batched_z))
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_z)))
 
         with torch.no_grad():
@@ -256,6 +257,8 @@ if __name__ == "__main__":
                 loss_D_true = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
                 loss_D = loss_D_true + loss_D_gen
                 loss_cum += loss_D.item()
+
+            print(len(batched_z))
 
             print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(batched_z_test)))
             loss_test.append(loss_cum / len(batched_z_test))
@@ -311,7 +314,7 @@ if __name__ == "__main__":
     print("start w training...")
 
     transform = EdgeTransform()
-    w_epochs = 100  ################################# adjust epoch here!!!
+    w_epochs = 10  ################################# adjust epoch here!!!
     discriminator.eval()
     loss_train = []
     for e in range(w_epochs):
@@ -364,14 +367,3 @@ if __name__ == "__main__":
     plt.title("w Loss")
     plt.plot(np.arange(len(loss_train)), np.array(loss_train), label = "train loss")
     plt.show()
-
-
-
-
-
-
-
-
-
-
-
