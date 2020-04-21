@@ -120,9 +120,9 @@ def remove_edge_difference(Graph, n = 1):
     for j in range(min(n, len(edgelist))):
         G.remove_edge(*edgelist[j][1])
         
-    for node in G.nodes():
-        if G.degree(node) == 0:
-            G.remove_node(node)
+    ##for node in G.nodes():
+    ##    if G.degree(node) == 0:
+    ##        G.remove_node(node)
     return G
 
 def add_node(Graph, namelist = None, n = 1, m = 1, descending = True):
