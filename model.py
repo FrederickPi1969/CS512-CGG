@@ -254,8 +254,8 @@ def binary_cross_entropy_loss(true, pred):
     return -1 * torch.mean(true * torch.log(pred) + (1 - true) * torch.log(1 - pred))
 
 def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
-    attr, attr_hat = y[0], y_hat[0]
-    A, A_hat = y[1], y_hat[1]
+    A, A_hat = y[0], y_hat[0]
+    attr, attr_hat = y[1], y_hat[1]
 
     # mse = nn.MSELoss(reduction="sum")
     # attr_reconstruction_loss = mse(attr.flatten(), attr_hat.flatten())

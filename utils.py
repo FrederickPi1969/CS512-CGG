@@ -451,7 +451,7 @@ def generate_data(dataArgs):
 
 def generate_dblp_data(dataArgs, load = False, save = True):
     if load:
-        return *(pickle.load(open("dblp_subgraphs", 'rb')))
+        return pickle.load(open("dblp_subgraphs", 'rb'))
 
     dblp_graph = dblp()
 
