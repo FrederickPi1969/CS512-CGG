@@ -29,7 +29,7 @@ if __name__ == "__main__":
     node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "10000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "20000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -222,11 +222,11 @@ if __name__ == "__main__":
 
             _, preds = discriminator(attr_hat, fil)
             labels = torch.zeros(fil.shape[0]).to(device)
-            loss_D_gen = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
+            loss_D_gen = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
 
             _, preds = discriminator(attr, train_fil)
             labels = torch.ones(fil.shape[0]).to(device)
-            loss_D_true = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
+            loss_D_true = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
             loss_D = loss_D_true + loss_D_gen
             loss_cum += loss_D.item()
             loss_D.backward()
@@ -249,11 +249,11 @@ if __name__ == "__main__":
 
                 _, preds = discriminator(attr_hat, fil)
                 labels = torch.zeros(fil.shape[0]).to(device)
-                loss_D_gen = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
+                loss_D_gen = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
 
                 _, preds = discriminator(attr, test_fil)
                 labels = torch.ones(fil.shape[0]).to(device)
-                loss_D_true = binary_cross_entropy_loss(labels.flatten(), preds.flatten())
+                loss_D_true = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
                 loss_D = loss_D_true + loss_D_gen
                 loss_cum += loss_D.item()
 

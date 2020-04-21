@@ -249,9 +249,14 @@ class VAE(nn.Module):
 
         return z_mean, z_log_var, z, A_hat, attr_hat
 
-
 def binary_cross_entropy_loss(true, pred):
     return -1 * torch.mean(true * torch.log(pred) + (1 - true) * torch.log(1 - pred))
+
+def binary_cross_entropy_loss_w(true, pred):
+    if true[0] == 1:
+        return -1 * torch.mean(torch.log(pred))
+    else:
+        return -1 * torch.mean(torch.log(1 - pred))
 
 def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
     A, A_hat = y[0], y_hat[0]
