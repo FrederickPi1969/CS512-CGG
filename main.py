@@ -3,6 +3,7 @@ from model import *
 import numpy as np
 import torch
 import sys
+import torch.nn.functional as F
 import torch.optim as optim
 # from transform_wrappers_multiprocessing import *
 from transform_wrappers import *
@@ -29,7 +30,7 @@ if __name__ == "__main__":
     node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "20000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "1000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -273,17 +274,13 @@ if __name__ == "__main__":
     # w = torch.randn_like(batched_z[0][0], requires_grad=True).unsqueeze(0).to(device)
     w = torch.tensor(np.random.normal(0.0, 0.1, [1, modelArgs["latent_dim"]]),
                  device=device, dtype=torch.float32, requires_grad=True)
-
+    a_w1, a_w2, a_b1, a_b2 = torch.FloatTensor(1).uniform_().to(device).requires_grad_(), \
+                             torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
+                             torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
+                             torch.FloatTensor(1).uniform_().to(device).requires_grad_()
     # print(w.shape, attr.shape, A.shape, fil.shape)
 
-
-    alpha = 0.2
-
-
-    optimizer_w = optim.Adam([w], lr=0.001) ################################ adjust lr here!!!!!
-
-
-    edit_z = (batched_z[0][0] + 0.2 * w)
+    optimizer_w = optim.Adam([a_w1, a_w2, a_b1, a_b2, w], lr=0.001) ################################ adjust lr here!!!!!
 
     ### Initialize generator
     generator = Decoder(modelArgs, trainArgs, device).to(device)
@@ -294,8 +291,6 @@ if __name__ == "__main__":
         assert k in decoder_weight
         generator_weight[k] = decoder_weight[k]
     generator.eval()
-
-    A_hat, attr_hat = generator(edit_z)
 
     ## then train w, fix discriminator parameters
     print("\n\n=================================================================================")
@@ -317,7 +312,7 @@ if __name__ == "__main__":
             fil = batched_gcn_filters_from_A_hat[i].float().to(device)
             attr_hat = batched_Attr_hat[i].float().to(device)
             A_hat = batched_A_hat[i].to(device)
-            A = A_train[i]
+            # A = A_train[i]
             z = batched_z[i].to(device)
 
             ## discretize
@@ -328,13 +323,13 @@ if __name__ == "__main__":
             A = torch.unsqueeze(torch.from_numpy(A), -1)
             A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
 
-            alpha_gen, alpha_edit = transform.get_train_alpha(A_hat) # input continuous as default, need discretization!!!
+            _, alpha_edit = transform.get_train_alpha(A_hat)  # input continuous as default, need discretization!!!
 
-
+            alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
             # from_numpy
             ## first get edit and D(edit(G(z)))
             edit_attr = attr_hat
-            edit_A = transform.get_target_graph(alpha_edit, A_hat)  ### replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
+            edit_A = transform.get_target_graph(alpha_edit, A_hat)  # replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
             temp = edit_A.detach().cpu()
             edit_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
             feature_edit, _ = discriminator(edit_attr.float(), edit_fil.float())
