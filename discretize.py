@@ -13,7 +13,7 @@ class Discretizer(object):
 
     def discretize(self, method, **args):
         if method == "hard_threshold":
-            threshold = 0.4
+            threshold = 0.5
             if args.get('threshold') != None:
                 threshold = args.get('threshold')
             return self.hard_threshold(threshold)
@@ -53,7 +53,7 @@ class Discretizer(object):
             raise ValueError('Error! Invalid discretize method! Please input one of the following methods:\n \
                               [hard_threshold, random_sampling, random_forest, vote_mapping]')
 
-    def hard_threshold(self, threshold=0.4):
+    def hard_threshold(self, threshold=0.5):
         res = copy.deepcopy(self.A_hat)
         batch_size = self.A_hat.shape[0]
         for i in range(batch_size):

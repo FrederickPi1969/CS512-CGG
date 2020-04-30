@@ -9,11 +9,11 @@ from transform_wrappers import *
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from discretize import *
+from visualization import *
 
 
 
 if __name__ == "__main__":
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(device)
 
@@ -177,20 +177,11 @@ if __name__ == "__main__":
 
                 print(torch.mean(list(vae.parameters())[0].grad))
 
-                # if e == trainArgs["epochs"] - 1:
-                #     for j in range(A.shape[0]):
-                        # print(A[j][0].squeeze(-1))
-                        # print(A_hat[j][0].squeeze(-1))
-
         print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(Attr_validate)))
         validation_losses.append(loss_cum / len(Attr_validate))
 
-    plt.figure()
-    plt.title("VAE Loss")
-    plt.plot(np.arange(len(train_losses)), np.array(train_losses), label = "train loss")
-    plt.plot(np.arange(len(validation_losses)), np.array(validation_losses), label = "test loss")
-    plt.legend()
-    # plt.show()
+    # drawGraph(A_train, batched_A_hat)
+    # showLoss("VAE", train_losses, validation_losses)
 
 
 
@@ -245,7 +236,6 @@ if __name__ == "__main__":
                 A = A_validate[i].to(device)
                 attr = Attr_validate[i].float().to(device)
                 test_fil = A_validate_mod[i].float().to(device)
-                # print(fil.shape, attr_hat.shape, A_hat.shape, A.shape, attr.shape, test_fil.shape)
 
                 _, preds = discriminator(attr_hat, fil)
                 labels = torch.zeros(fil.shape[0]).to(device)
@@ -260,17 +250,7 @@ if __name__ == "__main__":
             print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(batched_z_test)))
             loss_test.append(loss_cum / len(batched_z_test))
 
-
-
-
-
-
-    plt.figure()
-    plt.title("Discriminator Loss")
-    plt.plot(np.arange(len(loss_train)), np.array(loss_train), label = "train loss")
-    plt.plot(np.arange(len(loss_test)), np.array(loss_test), label = "test loss")
-    plt.legend()
-    # plt.show()
+    # showLoss("Discriminator", loss_train, loss_test)
 
 
 
@@ -311,9 +291,13 @@ if __name__ == "__main__":
     print("start w training...")
 
     transform = EdgeTransform()
-    w_epochs = 100  ################################# adjust epoch here!!!
+    w_epochs = 20  ################################# adjust epoch here!!!
     discriminator.eval()
     loss_train = []
+    w_A_train = []
+    w_A_hat_train = []
+    w_edit_A_hat_train = []
+    w_gen_A_hat_train = []
     for e in range(w_epochs):
         loss_cum = 0
         for i in tqdm(range(len(batched_A_hat))):
@@ -329,7 +313,8 @@ if __name__ == "__main__":
             A = A_train[i].cpu().numpy().squeeze(-1)
             A_hat = A_hat.cpu().numpy().squeeze(-1)
             discretizer = Discretizer(A, A_hat)
-            A_hat = discretizer.discretize('vote_mapping', rf_A=A_train, rf_A_hat=batched_A_hat)
+            A_hat = discretizer.discretize('hard_threshold')
+            A = torch.unsqueeze(torch.from_numpy(A), -1)
             A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
 
             alpha_gen, alpha_edit = transform.get_train_alpha(A_hat) # input continuous as default, need discretization!!!
@@ -357,13 +342,21 @@ if __name__ == "__main__":
             optimizer_w.step()
             print(w.grad)
 
+            if e + 1 == w_epochs:
+                w_A_train.append(A)
+                w_A_hat_train.append(A_hat)
+                w_edit_A_hat_train.append(edit_A)
+                gen_A = gen_A.detach().numpy().squeeze(-1)
+                discretizer = Discretizer(gen_A, gen_A)
+                gen_A = discretizer.discretize('hard_threshold')
+                gen_A = torch.unsqueeze(torch.from_numpy(gen_A), -1)
+                w_gen_A_hat_train.append(gen_A)
+
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    plt.figure()
-    plt.title("w Loss")
-    plt.plot(np.arange(len(loss_train)), np.array(loss_train), label = "train loss")
-    plt.show()
+    # drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
+    # showLoss("w", loss_train)
 
 
 
