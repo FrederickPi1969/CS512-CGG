@@ -180,7 +180,7 @@ if __name__ == "__main__":
         print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(Attr_validate)))
         validation_losses.append(loss_cum / len(Attr_validate))
 
-    # drawGraph(A_train, batched_A_hat)
+    drawGraph(A_train, batched_A_hat)
     # showLoss("VAE", train_losses, validation_losses)
 
 
@@ -355,8 +355,8 @@ if __name__ == "__main__":
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    # drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
-    # showLoss("w", loss_train)
+    drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
+    showLoss("w", loss_train)
 
 
 

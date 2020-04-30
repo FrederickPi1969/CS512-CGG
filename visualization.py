@@ -85,8 +85,9 @@ def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, sample_
 		edit_a, gen_a = None, None
 		a = a_sample[i]
 		a_hat = a_hat_sample[i]
-		edit_a = edit_A_sample[i]
-		gen_a = gen_A_sample[i]
+		if has_edit_graph:
+			edit_a = edit_A_sample[i]
+			gen_a = gen_A_sample[i]
 
 
 		ax = fig.add_subplot(sample_size,col_size,i*col_size+1)

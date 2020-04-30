@@ -304,7 +304,7 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
 
 def w_loss_func(y, y_hat, feature_true, feature_fake, alpha, beta):
     mse = nn.MSELoss(reduction="sum")
-    entropy_loss = binary_cross_entropy_loss(y.flatten(), y_hat.flatten())   ## modify w so as to maximize the probability of D being wrong!
+    entropy_loss = binary_cross_entropy_loss_w(y.flatten(), y_hat.flatten())   ## modify w so as to maximize the probability of D being wrong!
     feature_similarity_loss = mse(feature_true, feature_fake)
     # return alpha * entropy_loss + beta * feature_similarity_loss
     return feature_similarity_loss
