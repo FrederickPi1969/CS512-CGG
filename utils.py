@@ -7,7 +7,48 @@ from graph_operations import *
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from networkx.generators import random_graphs
+from discretize import *
+from model import *
 
+def computeNP(A, A_hat):
+    batch_size = len(A)
+    n, n_hat, p, p_hat = [],[],[],[]
+    A = A.numpy().squeeze(-1)
+    A_hat = A_hat.numpy().squeeze(-1)
+    discretizer = Discretizer(A, A_hat)
+    A_hat = discretizer.discretize('hard_threshold')
+
+    for a, a_hat in zip(A, A_hat):
+        p_a = 0.0
+        n_a = int(np.sum([a[i,i] for i in range(len(a))]))
+        if n_a > 1:
+            p_a = (np.sum(a[:n_a,:n_a])-n_a)/2
+            p_a /= (n_a*(n_a - 1)) / 2
+
+        n_a_hat = int(sum([a_hat[i,i] for i in range(len(a_hat))]))
+        p_a_hat = 0.0
+        if n_a_hat > 1:
+            p_a_hat = (np.sum(a_hat[:n_a_hat,:n_a_hat])-n_a_hat)/2
+            p_a_hat /= (n_a_hat*(n_a_hat - 1)) / 2
+
+        # normalize
+        n_a /= A.shape[1]
+        n_a_hat /= A.shape[1]
+        n.append(n_a)
+        p.append(p_a)
+        n_hat.append(n_a_hat)
+        p_hat.append(p_a_hat)
+
+    n = torch.unsqueeze(torch.from_numpy(np.array(n)), -1)
+    p = torch.unsqueeze(torch.from_numpy(np.array(p)), -1)
+    n_hat = torch.unsqueeze(torch.from_numpy(np.array(n_hat)), -1)
+    p_hat = torch.unsqueeze(torch.from_numpy(np.array(p_hat)), -1)
+    mse = nn.MSELoss(reduction="mean")
+    n_loss = mse(n.flatten(), n_hat.flatten()) * A.shape[1]*A.shape[2]
+    p_loss = mse(p.flatten(), p_hat.flatten()) * A.shape[1]*A.shape[2]
+    loss = n_loss + p_loss
+    return n, n_hat, p, p_hat, loss
+    
 def graph_mapping(A, dataArgs, modelArgs):
     batch = []
     A = A.detach().numpy()
