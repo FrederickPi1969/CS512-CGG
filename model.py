@@ -6,7 +6,6 @@ import scipy.sparse as sp
 import torch.nn as nn
 import numpy as np
 from tqdm import tqdm
-from networkx.generators import random_graphs
 
 class Discriminator(nn.Module):
     def __init__(self, modelArgs, device):

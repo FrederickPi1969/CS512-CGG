@@ -335,6 +335,17 @@ def pad_data(a, attr, max_n_node):
 
     return max_a, attr
 
+def pad_data_v2(a, attr, max_n_node):
+    np.fill_diagonal(a, 1.0)  ## fill the diagonal with fill_diag
+
+    max_a = np.zeros([max_n_node, max_n_node])
+    max_a[:a.shape[0], :a.shape[1]] = a
+    max_a = np.expand_dims(max_a, axis=2)
+
+    max_attr = np.zeros([max_n_node, max_n_node])
+    max_attr[:attr.shape[0], :attr.shape[1]] = attr
+    return max_a, max_attr
+
 
 def unpad_data(max_a, attr):
     keep = list()
@@ -358,6 +369,29 @@ def unpad_data(max_a, attr):
 
     return g, a, attr
 
+def unpad_data_v2(max_a, attr):
+    keep = list()
+    max_a = np.reshape(max_a, (max_a.shape[0], max_a.shape[1]))
+
+    max_a[max_a > 0.5] = 1.0
+    max_a[max_a <= 0.5] = 0.0
+
+    for i in range(0, max_a.shape[0]):
+        if max_a[i][i] > 0:
+            keep.append(i)
+
+    a = max_a
+    a = a[:, keep]  # keep columns
+    a = a[keep, :]  # keep rows
+
+    sum = np.sum(attr, dim=1)
+    keep = list(sum).index(0)
+    attr = attr[:keep, :keep]  ## shorten
+    g = nx.from_numpy_matrix(a)
+
+    return g, a, attr
+
+
 
 # @title Graph Generation Methods
 def generate_graph(n, p):
@@ -366,7 +400,9 @@ def generate_graph(n, p):
 
     return g, a
 
-def generate_attr(g, n, p, dataArgs):
+def generate_attr_v2(g, n, p, dataArgs):
+    # We take as default that embedding dimension is same as node_num n!!!!!!
+    # Notice we don't allow self loop so each node has degree range [0, n-1], which can be directly treated as attr index. We do one-hot on degree when using "degree" mode.
     attr, attr_param = None, None
     if dataArgs["node_attr"] == "none":
         attr = np.ones((n)) * 0.5
@@ -374,8 +410,36 @@ def generate_attr(g, n, p, dataArgs):
         attr_param = 0
 
     if dataArgs["node_attr"] == "random":
-        attr = np.random.rand(n)
+        attr = np.random.rand(n, n)
+        attr_param = np.random.rand(1)
 
+    if dataArgs["node_attr"] == "degree":
+        a = nx.adjacency_matrix(g).toarray()
+        idx = np.asarray([int(x[0]) for x in sorted(g.degree())])
+        degree = np.asarray([int(x[1]) for x in sorted(g.degree())])
+
+        attr = np.zeros([n, n])
+        attr[idx, degree] = 1
+
+        attr_param = np.random.rand(1)
+
+    if dataArgs["node_attr"] == "uniform":
+        uniform_attr = np.random.rand(1)
+        attr = torch.empty([n,n]).uniform_().numpy()
+        attr_param = uniform_attr
+
+
+    return g, attr, attr_param
+
+
+def generate_attr(g, n, p, dataArgs):
+    attr, attr_param = None, None
+    if dataArgs["node_attr"] == "none":
+        attr = np.ones((n)) * 0.5
+        attr_param = 0
+
+    if dataArgs["node_attr"] == "random":
+        attr = np.random.rand(n,n)
         attr_param = np.random.rand(1)
 
     if dataArgs["node_attr"] == "degree":
@@ -396,6 +460,7 @@ def generate_attr(g, n, p, dataArgs):
         attr_param = p
 
     return g, attr, attr_param
+
 
 
 def compute_topol(g):
@@ -423,7 +488,7 @@ def compute_topol(g):
 
 def generate_data(dataArgs):
     A = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], dataArgs["max_n_node"], 1)) ## graph data
-    Attr = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], 1)) ## graph data
+    Attr = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], dataArgs["max_n_node"])) ## graph data, shape: (n_graph, n_node, n_node)
     Param = np.zeros((dataArgs["n_graph"], 3)) ## generative parameters
     Topol = np.zeros((dataArgs["n_graph"], 5)) ## topological properties
 
@@ -449,14 +514,10 @@ def generate_data(dataArgs):
     print('done')
     return A, Attr, Param, Topol
 
-def generate_dblp_data(dataArgs, load = False, save = True):
-    if load:
-        return pickle.load(open("dblp_subgraphs", 'rb'))
 
-    dblp_graph = dblp()
-
+def generate_data_v2(dataArgs):
     A = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], dataArgs["max_n_node"], 1)) ## graph data
-    Attr = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], 1)) ## graph data
+    Attr = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], dataArgs["max_n_node"])) ## graph data, shape: (n_graph, n_node, n_node)
     Param = np.zeros((dataArgs["n_graph"], 3)) ## generative parameters
     Topol = np.zeros((dataArgs["n_graph"], 5)) ## topological properties
 
@@ -464,22 +525,23 @@ def generate_dblp_data(dataArgs, load = False, save = True):
     for i in tqdm(range(0, dataArgs["n_graph"]), leave=True, position=0):
 
         n = np.random.randint(1, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
+        p = np.random.uniform(dataArgs["p_range"][0], dataArgs["p_range"][1]) ## floating p from range
 
-        g, a = sample_subgraph(dblp_graph, target_size = n, max_size = dataArgs["max_n_node"], start = None)
-        n = len(g)
-        p = nx.transitivity(g)
-        g, attr, attr_param = generate_attr(g, n, p, dataArgs)
+        g, a = generate_graph(n, p)
+        g, attr, attr_param = generate_attr_v2(g, n, p, dataArgs)
 
         g, a, attr = sort_adjacency(g, a, attr) ## extended BOSAM sorting algorithm
-        a, attr = pad_data(a, attr, dataArgs["max_n_node"]) ## pad adjacency matrix to allow less nodes than max_n_node and fill diagonal
+        a, attr = pad_data_v2(a, attr, dataArgs["max_n_node"]) ## pad adjacency matrix to allow less nodes than max_n_node and fill diagonal
 
-        A[i] = a
+        if dataArgs["upper_triangular"]:
+            A[i] = np.triu(a.reshape(dataArgs["max_n_node"], dataArgs["max_n_node"])).reshape(dataArgs["max_n_node"], dataArgs["max_n_node"], 1)
+        else:
+            A[i] = a
+
         Attr[i] = attr
         Param[i] = [n,p,attr_param]
         Topol[i] = compute_topol(g)
     print('done')
-    if save:
-        pickle.dump((A, Attr, Param, Topol), open("dblp_subgraphs", 'wb'))
     return A, Attr, Param, Topol
 
 
@@ -493,4 +555,37 @@ def generate_batch(data, batch_size=512):
         batched_data.append(data[index_low:index_high])
     return batched_data
 
-# def train_test_split(all_data, test_proportion = 0.1):
+
+# def generate_dblp_data(dataArgs, load = False, save = True):
+#     if load:
+#         return pickle.load(open("dblp_subgraphs", 'rb'))
+#
+#     dblp_graph = dblp()
+#
+#     A = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], dataArgs["max_n_node"], 1)) ## graph data
+#     Attr = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], 1)) ## graph data
+#     Param = np.zeros((dataArgs["n_graph"], 3)) ## generative parameters
+#     Topol = np.zeros((dataArgs["n_graph"], 5)) ## topological properties
+#
+#     print("\n============= Generating Data ===========================")
+#     for i in tqdm(range(0, dataArgs["n_graph"]), leave=True, position=0):
+#
+#         n = np.random.randint(1, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
+#
+#         g, a = sample_subgraph(dblp_graph, target_size = n, max_size = dataArgs["max_n_node"], start = None)
+#         n = len(g)
+#         p = nx.transitivity(g)
+#         g, attr, attr_param = generate_attr(g, n, p, dataArgs)
+#
+#         g, a, attr = sort_adjacency(g, a, attr) ## extended BOSAM sorting algorithm
+#         a, attr = pad_data(a, attr, dataArgs["max_n_node"]) ## pad adjacency matrix to allow less nodes than max_n_node and fill diagonal
+#
+#         A[i] = a
+#         Attr[i] = attr
+#         Param[i] = [n,p,attr_param]
+#         Topol[i] = compute_topol(g)
+#
+#     print('done')
+#     if save:
+#         pickle.dump((A, Attr, Param, Topol), open("dblp_subgraphs", 'wb'))
+#     return A, Attr, Param, Topol
