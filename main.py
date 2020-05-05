@@ -115,8 +115,10 @@ if __name__ == "__main__":
     optimizer = optim.Adam(vae.parameters(), lr=trainArgs["lr"], weight_decay=1e-5)
     # A_hat, attr_hat = vae(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
 
+    np_losses = []
     train_losses = []
     validation_losses = []
+    np_validation_losses = []
     batched_z = []
     batched_A_hat =[]
     batched_Attr_hat = []
@@ -131,6 +133,7 @@ if __name__ == "__main__":
         print("Epoch {} / {}".format(e + 1, trainArgs["epochs"]))
         # for i in tqdm(range(len(Attr_train)), leave=True):
         loss_cum = 0
+        np_loss = 0
         vae.train()
 
         for i in range(len(Attr_train)):
@@ -153,13 +156,18 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-        print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(Attr_train)))
-        train_losses.append(loss_cum / len(Attr_train))
+            n,p,n_hat,p_hat,loss = computeNP(A.cpu(), A_hat.detach())
+            np_loss += loss
 
+
+        print("At Epoch {}, training loss {}, np loss {}".format(e + 1, loss_cum / len(Attr_train), np_loss / len(Attr_train)))
+        train_losses.append(loss_cum / len(Attr_train))
+        np_losses.append(np_loss / len(Attr_train))
         ### validation dataset
         vae.eval()
         with torch.no_grad():
             loss_cum = 0
+            np_loss = 0
             for i in range(len(Attr_validate)):
                 attr = Attr_validate[i].float().to(device)
                 A = A_validate[i].float().to(device)
@@ -168,6 +176,9 @@ if __name__ == "__main__":
                 z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
                 loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
                 loss_cum += loss.item()
+                
+                n,p,n_hat,p_hat,loss = computeNP(A.cpu(), A_hat.detach())
+                np_loss += loss
 
                 if e + 1 == trainArgs["epochs"]:
                     batched_z_test.append(z.detach())
@@ -178,12 +189,12 @@ if __name__ == "__main__":
 
                 print(torch.mean(list(vae.parameters())[0].grad))
 
-        print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(Attr_validate)))
+        print("At Epoch {}, validation loss {}, np loss {}".format(e + 1, loss_cum / len(Attr_validate), np_loss / len(Attr_train)))
         validation_losses.append(loss_cum / len(Attr_validate))
-
+        np_validation_losses.append(np_loss / len(Attr_validate))
     # drawGraph(A_train, batched_A_hat)
     # showLoss("VAE", train_losses, validation_losses)
-
+    # showLoss("NP", np_losses, np_validation_losses)
 
 
 
