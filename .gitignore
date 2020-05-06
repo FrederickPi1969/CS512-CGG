@@ -65,3 +65,11 @@ debug.txt
 debug_zero.txt
 sort.py
 debug 2.txt
+*.icloud
+dblp_edges.txt
+.DS_Store
+Image/
+default.txt
+error_analysis.txt
+summary.txt
+tune_baseline.txt

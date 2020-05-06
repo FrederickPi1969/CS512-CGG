@@ -15,27 +15,37 @@ class Discriminator(nn.Module):
         self.node_num = modelArgs["input_shape"][0][0]
         self.attr_dim = modelArgs["input_shape"][0][1]
 
-        self.gcn1 = GCN(64, self.num_filters, self.device) # fix output_dim = 100
+        self.gcn1 = GCN(64, self.num_filters, self.device)  # fix output_dim = 100
         self.drop1 = nn.Dropout(0.1)
         self.gcn2 = GCN(64, self.num_filters, self.device)
 
-
+        self.achorLinear = nn.Linear(64, 12, bias=True)
+        """
         self.linear1 = nn.Linear(64, 32, bias=True)
         self.linear2 = nn.Linear(32, 16, bias=True)
-        self.linear3 = nn.Linear(16, 1, bias = True)
+        self.linear3 = nn.Linear(16, 1, bias=True)
+        """
+        self.linear1 = nn.Linear(144, 64, bias=True)
+        self.linear2 = nn.Linear(64, 32, bias=True)
+        self.linear3 = nn.Linear(32, 16, bias=True)
+        self.linear4 = nn.Linear(16, 1, bias=True)
 
     def forward(self, x, graph_conv_filters):
         o = self.gcn1(x, graph_conv_filters)
         o = self.drop1(o)
         o = self.gcn2(o, graph_conv_filters)
-        o = torch.mean(o, dim = 1) # mean
+        o = self.achorLinear(o)
+        # o = torch.mean(o, dim = 1) # mean
         # o = torch.max(o, dim = 1) # max pooling
         anchor = o
+        o = torch.flatten(o, start_dim=1)
         o = self.linear1(o)
         o = F.leaky_relu(o)
         o = self.linear2(o)
         o = F.leaky_relu(o)
         o = self.linear3(o)
+        o = F.leaky_relu(o)
+        o = self.linear4(o)
         o = torch.sigmoid(o)
 
         return anchor, o
@@ -69,35 +79,42 @@ class GCN(nn.Module):
         conv_op = torch.cat(conv_op, dim=2)
 
         conv_out = conv_op @ self.kernel
-        conv_out += conv_out + self.bias  # optional
-        conv_out = F.elu(conv_out)  # optional
+        conv_out += conv_out + self.bias  # bias is optional!
+        conv_out = F.elu(conv_out)  # activation is optional!
 
         return conv_out
 
 
-class Encoder(nn.Module):
+class Encoder_v2(nn.Module):
     def __init__(self, modelArgs, trainArgs, device):
-        super(Encoder, self).__init__()
+        super(Encoder_v2, self).__init__()
         self.num_filters = modelArgs["gnn_filters"]
         self.node_num = modelArgs["input_shape"][0][0]
         self.attr_dim = modelArgs["input_shape"][0][1]
         self.device = device
 
-        self.gcn1 = GCN(100, self.num_filters, self.device) # fix output_dim = 100
+        self.gcn1 = GCN(100, self.num_filters, self.device)  # fix output_dim = 100
         self.drop1 = nn.Dropout(0.1)
         self.gcn2 = GCN(100, self.num_filters, self.device)
         self.drop2 = nn.Dropout(0.1)
-        self.linear1 = nn.Linear(100, 8, bias=True)
-        self.linear2 = nn.Linear(8, 6, bias=True)
-        self.mean_linear = nn.Linear(6, modelArgs["latent_dim"])
-        self.log_var_linear = nn.Linear(6, modelArgs["latent_dim"])
-        # graph_conv_filters = preprocess_adj_tensor_with_identity(torch.squeeze(A_train))
+
+        self.node_emb_size = 128
+        self.linear1 = nn.Linear(100, self.node_emb_size, bias=True)  # W1 size (h=100, emb=128)
+        # self.linear1.bias.data.zero_()
+        self.linear2 = nn.Linear(self.node_emb_size, 64, bias=True)  # W2 size (emb = 128, hidden=64)
+        # self.linear2.bias.data.zero_()
+        self.relu = nn.ReLU()
+        self.mean_linear = nn.Linear(64, modelArgs["latent_dim"], bias=True)  # W3,4 size (emb=64, z)
+        # self.mean_linear.bias.data.zero_()
+        self.log_var_linear = nn.Linear(64, modelArgs["latent_dim"], bias=True)
+        # self.log_var_linear.bias.data.zero_()
 
     def sampler(self, args):
         z_mean, z_log_var = args
         batch = z_mean.shape[0]
-        dim = z_mean.shape[1]
-        epsilon = torch.randn(batch, dim).to(self.device)
+        dim = z_mean.shape[-1]
+        n = z_mean.shape[1]
+        epsilon = torch.randn(batch, n, dim).to(self.device)
         return z_mean + torch.exp(0.5 * z_log_var) * epsilon
 
     def forward(self, input, graph_conv_filters):
@@ -105,77 +122,41 @@ class Encoder(nn.Module):
         x = self.gcn1(input, graph_conv_filters)
         x = self.drop1(x)
         x = self.gcn2(x, graph_conv_filters)
-        x = self.drop2(x)
+        x = self.drop2(x)  # (b, n, h=100)
         # print(x.shape)
-        x = torch.mean(x, dim=1) # node invariant layer
-        # print(x.shape)
-        x = self.linear1(x)
-        x = self.linear2(x)
-        z_mean = self.mean_linear(x)
-        z_log_var = self.log_var_linear(x)
-        z = self.sampler((z_mean, z_log_var))
+
+        x = self.relu(self.linear1(x))  # (b, n, emb_size)
+        x = self.linear2(x)  # (b, n, hidden=64)
+
+        z_mean = self.mean_linear(x)  # (b, n, z)
+        z_log_var = self.log_var_linear(x)  # (b, n, z)
+        z = self.sampler((z_mean, z_log_var))  # (b, n, z)
         return z_mean, z_log_var, z
 
 
-class Decoder(nn.Module):
+class Decoder_v2(nn.Module):
     def __init__(self, modelArgs, trainArgs, device):
-        super(Decoder, self).__init__()
+        super(Decoder_v2, self).__init__()
         self.device = device
         self.node_num = modelArgs["input_shape"][0][0]
-        self.attr_dim = modelArgs["input_shape"][0][1]
+        self.attr_dim = modelArgs["input_shape"][0][-1]
+        # print(modelArgs["input_shape"])
         self.modelArgs = modelArgs
         self.trainArgs = trainArgs
         self.out_channels = modelArgs["conv_filters"]
         self.kernel_size = modelArgs["kernel_size"]
-        self.latent_dim  = modelArgs["latent_dim"]
+        self.latent_dim = modelArgs["latent_dim"]
 
         # decoding A
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=self.out_channels,
-                               kernel_size=self.kernel_size, stride=2,
-                               padding=self.compute_same_padding_size(self.kernel_size))
-
-        self.padding_size = self.compute_same_padding_size(self.kernel_size)
-
-        self.conv1_w = self.compute_shape_after_conv(w = self.node_num, k=self.kernel_size, s=2,
-                                                     p = self.padding_size)
-
-        # print(self.conv1_w)
-        self.conv2_w = self.compute_shape_after_conv(w=self.conv1_w, k=self.kernel_size, s=2,
-                                                     p=self.padding_size)
-
-        # print(self.conv2_w)
-        # self.conv2 = nn.Conv2d(in_channels=1, out_channels=self.out_channels,
-        #                        kernel_size=self.kernel_size, stride=2,
-        #                        padding=self.compute_same_padding_size(self.kernel_size))
-
-        self.dense1 = nn.Linear(self.latent_dim, self.conv2_w * self.conv2_w * self.out_channels * 4)
-        self.dense1_nm = nn.BatchNorm1d(self.conv2_w * self.conv2_w * self.out_channels * 4)
-
-        self.deconv1 = nn.ConvTranspose2d(in_channels=self.out_channels * 4, out_channels= self.out_channels * 2,
-                                          kernel_size=self.kernel_size, stride=2, padding=(self.padding_size[0], self.padding_size[1]),
-                                          output_padding=(self.padding_size[0], self.padding_size[1]), bias=True)
-
-        self.deconv2 = nn.ConvTranspose2d(in_channels= self.out_channels * 2, out_channels=self.out_channels,
-                                          kernel_size=self.kernel_size, stride=2, padding=(self.padding_size[0], self.padding_size[1]),
-                                          output_padding=(self.padding_size[0], self.padding_size[1]), bias=True)
-
-        self.deconv3 = nn.ConvTranspose2d(in_channels= self.out_channels, out_channels=1,
-                                          kernel_size=self.kernel_size, stride=1, padding=(self.padding_size[0], self.padding_size[1]))
-
-        # self.l1 = nn.Linear(self.latent_dim, 12)
-        # self.l2 = nn.Linear(12, 24)
-        # self.l3 = nn.Linear(24, 48)
-        # self.l4 = nn.Linear(48, self.node_num * self.node_num)
-        # self.norm1 = nn.BatchNorm1d(12)
-        # self.norm2 = nn.BatchNorm1d(24)
-        # self.norm3 = nn.BatchNorm1d(48)
-        # self.norm4 = nn.BatchNorm1d(self.node_num * self.node_num)
+        # Input Z shape: (b, n, z_size) !
+        self.hidden_shape = 64  # adjustable
+        self.dense1 = nn.Linear(self.latent_dim, self.hidden_shape)
+        # self.dense1_nm = nn.BatchNorm1d(self.conv2_w * self.conv2_w * self.out_channels * 4)
 
         # decoding attribute
-        self.linear1 = nn.Linear(self.latent_dim, 4)
-        self.linear2 = nn.Linear(4, 6)
-        self.linear3 = nn.Linear(6, 10)
-        self.linear4 = nn.Linear(10, self.node_num)
+        self.linear1 = nn.Linear(self.latent_dim, 32)
+        self.linear2 = nn.Linear(32, 64)
+        self.linear3 = nn.Linear(64, self.attr_dim)
 
     def compute_shape_after_conv(self, w, k, s, p):
         return (w + p[0] + p[1] - k) // s + 1
@@ -187,60 +168,35 @@ class Decoder(nn.Module):
         return (p_left, p_right, p_left, p_right)
 
     def forward(self, z):
-        # # decoding A with deconvolution:
-        x = self.dense1(z)
-        x = self.dense1_nm(x)
+        # # decoding A with dot product:
+        x = self.dense1(z)  # (b, n, hidden=64)
+        # x = self.dense1_nm(x)
         x = F.relu(x)
-        x = x.view(-1, self.out_channels * 4, self.conv2_w, self.conv2_w)
-        # print(x.shape)
-        x = self.deconv1(x)
-        # print(x)
-        x = F.relu(x)
-        # print(x.shape)
-        x = self.deconv2(x)
-        x = F.relu(x)
-        # print(x.shape)
-        x = self.deconv3(x)
-        A_hat = torch.sigmoid(x).transpose(-1, -2).transpose(-1, 1)
-
-
-        # # decoding A with fully connected layer:
-        # x = self.l1(z)
-        # x = self.norm1(x)
-        # x = F.relu(x)
-        # x = self.l2(x)
-        # x = self.norm2(x)
-        # x = F.relu(x)
-        # x = self.l3(x)
-        # x = self.norm3(x)
-        # x = F.relu(x)
-        # x = self.l4(x)
-        # x = self.norm4(x)
-        # A_hat = torch.sigmoid(x).transpose(-1, -2).transpose(-1, 1)
-
+        A_hat = x.bmm(x.transpose(-1,-2)) # (b,n,n)
+        max_score_per_node, _ = A_hat.max(dim=-1, keepdim=True)
+        min_score_per_node, _ = A_hat.min(dim=-1, keepdim=True)
+        A_hat = ((A_hat-min_score_per_node) / (max_score_per_node + 1e-13)).clamp(0.01, 0.99).unsqueeze(-1)
+        # print(A_hat)
 
         # decoding node attributes:
-        y = self.linear1(z)
+        y = self.linear1(z)  # (b, n, 32)
         y = F.relu(y)
-        y = self.linear2(y)
+        y = self.linear2(y)  # (b, n, 64)
         y = F.relu(y)
-        y = self.linear3(y)
-        y = F.relu(y)
-        y = self.linear4(y)
-        y = torch.sigmoid(y)
-        attr_hat = y.view(-1, self.node_num, self.attr_dim)
-
+        y = self.linear3(y)  # (b, n, attr)
+        attr_hat = torch.sigmoid(y)
+        # attr_hat = y.view(-1, self.node_num, self.attr_dim)
         return A_hat, attr_hat
 
 
-class VAE(nn.Module):
+class VAE_v2(nn.Module):
     def __init__(self, modelArgs, trainArgs, device):
-        super(VAE, self).__init__()
+        super(VAE_v2, self).__init__()
         self.modelArgs = modelArgs
         self.trainArgs = trainArgs
         self.device = device
-        self.encoder = Encoder(modelArgs, trainArgs, device)
-        self.decoder = Decoder(modelArgs, trainArgs, device)
+        self.encoder = Encoder_v2(modelArgs, trainArgs, device)
+        self.decoder = Decoder_v2(modelArgs, trainArgs, device)
 
     def forward(self, attr, graph_conv_filters):
         z_mean, z_log_var, z = self.encoder(attr, graph_conv_filters)
@@ -249,7 +205,14 @@ class VAE(nn.Module):
         return z_mean, z_log_var, z, A_hat, attr_hat
 
 def binary_cross_entropy_loss(true, pred):
-    return -1 * torch.mean(true * torch.log(pred) + (1 - true) * torch.log(1 - pred))
+    # pred -= 1e-8
+    # assert all(pred > 0.0)
+    # assert all(pred < 1.0)
+    loss = -1 * torch.mean(true * torch.log(pred) + (1 - true) * torch.log(1 - pred))
+    if loss != loss:
+        print(torch.max(pred), torch.min(pred))
+        raise Exception("nan")
+    return loss
 
 def binary_cross_entropy_loss_w(true, pred):
     if true[0] == 1:
@@ -260,21 +223,6 @@ def binary_cross_entropy_loss_w(true, pred):
 def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
     A, A_hat = y[0], y_hat[0]
     attr, attr_hat = y[1], y_hat[1]
-
-    # mse = nn.MSELoss(reduction="sum")
-    # attr_reconstruction_loss = mse(attr.flatten(), attr_hat.flatten())
-    #
-    # bce = nn.BCELoss(reduction="sum")
-    # adj_reconstruction_loss = bce(A.flatten(), A_hat.flatten().detach())
-    #
-    # # print(torch.min(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()))
-    # kl_loss = -0.5 * torch.sum(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()) ######## ?
-    # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss, trainArgs["loss_weights"][2] * kl_loss)
-    #
-    # # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss,  trainArgs["loss_weights"][2] * kl_loss)
-    # loss = trainArgs["loss_weights"][0] * adj_reconstruction_loss + trainArgs["loss_weights"][1] * attr_reconstruction_loss +  trainArgs["loss_weights"][2] * kl_loss
-
-
     mse = nn.MSELoss(reduction="mean")
     attr_reconstruction_loss = mse(attr.flatten(), attr_hat.flatten()) * modelArgs["input_shape"][0][0]
 
@@ -285,24 +233,20 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
     # print(A_hat.flatten().requires_grad)
 
     # adj_reconstruction_loss = mse(A.flatten(), A_hat.flatten()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
-    adj_reconstruction_loss =  binary_cross_entropy_loss(A.flatten(), A_hat.flatten()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
+    adj_reconstruction_loss = binary_cross_entropy_loss(A.flatten(), A_hat.flatten()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
 
     # print(torch.min(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()))
-    kl_loss = -0.5 * torch.sum((1 + z_log_var - z_mean.pow(2) - z_log_var.exp()), dim = -1) ######## ?
+    kl_loss = -0.5 * torch.sum((1 + z_log_var - z_mean.pow(2) - z_log_var.exp()), dim = -1) ######## ??????????
     print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss, torch.mean(trainArgs["loss_weights"][2] * kl_loss))
 
     # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss,  trainArgs["loss_weights"][2] * kl_loss)
     loss = torch.mean(trainArgs["loss_weights"][0] * adj_reconstruction_loss + trainArgs["loss_weights"][1] * attr_reconstruction_loss +  trainArgs["loss_weights"][2] * kl_loss)
-    # loss = trainArgs["loss_weights"][0] * adj_reconstruction_loss
 
     return loss
 
 
-# def discriminator_loss(pred, ):pass
-
-
 def w_loss_func(y, y_hat, feature_true, feature_fake, alpha, beta):
-    mse = nn.MSELoss(reduction="sum")
+    mse = nn.MSELoss(reduction="mean")
     entropy_loss = binary_cross_entropy_loss_w(y.flatten(), y_hat.flatten())   ## modify w so as to maximize the probability of D being wrong!
     feature_similarity_loss = mse(feature_true, feature_fake)
     # return alpha * entropy_loss + beta * feature_similarity_loss

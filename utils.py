@@ -10,6 +10,37 @@ from networkx.generators import random_graphs
 from discretize import *
 from model import *
 
+"""
+reshape current matrix to only include existing nodes
+"""
+def reshapeMatrix(matrixList):
+    matrices = []
+    single_matrix = False
+    if len(np.array(matrices).shape) == 2:
+        matrices = [matrices]
+        single_matrix = True
+    for graphIdx,matrix in enumerate(matrixList):
+        number_of_nodes = 0
+        # print('before:',matrix.shape)
+        for i in range(len(matrix)):
+            if matrix[i][i].any() == 1:
+                number_of_nodes += 1
+            else:
+                break
+        matrices.append(matrix[:number_of_nodes,:number_of_nodes])
+        # print('after:',matrix.shape)
+    if single_matrix:
+        matrices = matrices[0]
+    return np.array(matrices)
+
+"""
+add padding to matrix to desire shape
+"""
+def padMatrix(matrixInput, max_n_node):
+    matrix = copy.deepcopy(matrixInput)
+    n = len(matrix)
+    return np.pad(matrix, [(0, max_n_node-n), (0, max_n_node-n)], mode='constant', constant_values=0)
+
 def computeNP(A, A_hat):
     batch_size = len(A)
     n, n_hat, p, p_hat = [],[],[],[]

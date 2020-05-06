@@ -1,5 +1,6 @@
 import numpy as np
 import networkx as nx
+from utils import *
 from matplotlib import pyplot as plt
 
 def showLoss(modelName, train_losses, validation_losses=None):
@@ -17,13 +18,14 @@ def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, sample_
 	if edit_train:
 		col_size = 4
 	has_edit_graph = False
-	a = A_train[0].cpu().numpy().squeeze(-1)        
-	a_hat = batched_A_hat[0].cpu().numpy().squeeze(-1)
+	max_n_node = A_train[0].shape[1]
+	a = reshapeMatrix(A_train[0].cpu().numpy().squeeze(-1))
+	a_hat = reshapeMatrix(batched_A_hat[0].cpu().numpy().squeeze(-1))
 	if edit_train != None:
-		edit_A = edit_train[0].cpu().numpy().squeeze(-1) 
+		edit_A = reshapeMatrix(edit_train[0].cpu().numpy().squeeze(-1))
 		has_edit_graph = True
 	if gen_A_train != None:
-		gen_A = gen_A_train[0].detach().numpy().squeeze(-1)
+		gen_A = reshapeMatrix(gen_A_train[0].detach().numpy().squeeze(-1))
 
 	if len(a.shape) == 2:
 		a_sample = [a]
@@ -83,11 +85,11 @@ def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, sample_
 	fig = plt.figure()
 	for i in range(sample_size):
 		edit_a, gen_a = None, None
-		a = a_sample[i]
-		a_hat = a_hat_sample[i]
+		a = padMatrix(a_sample[i], max_n_node)
+		a_hat = padMatrix(a_hat_sample[i], max_n_node)
 		if has_edit_graph:
-			edit_a = edit_A_sample[i]
-			gen_a = gen_A_sample[i]
+			edit_a = padMatrix(edit_A_sample[i], max_n_node)
+			gen_a = padMatrix(gen_A_sample[i], max_n_node)
 
 
 		ax = fig.add_subplot(sample_size,col_size,i*col_size+1)
@@ -114,4 +116,40 @@ def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, sample_
 		plt.subplots_adjust(top = 0.90, bottom=0.1, hspace=0.3, wspace=0.3)
 	plt.show()
 	
+def debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, discretize_method, printMatrix):
+    A = []
+    A_hat = []
+    for i in range(len(A_train)):
+        A.extend(A_train[i])
+        A_hat.extend(batched_A_hat[i])
+    for i in range(len(A_validate)):
+        A.extend(A_validate[i])
+        A_hat.extend(batched_A_hat_test[i])
+    A = torch.stack(A).squeeze().numpy()
+    A_hat = torch.stack(A_hat).squeeze().numpy()
+    A_hat_raw = copy.deepcopy(A_hat)
 
+    discretizer = Discretizer(A, A_hat)
+    A_hat = discretizer.discretize(discretize_method)
+    accuracy = 0
+    for i,a in enumerate(A):
+        a_hat = A_hat[i]
+        a_hat_raw = A_hat_raw[i]
+        num_of_node = 0
+        for i in range(len(a)):
+            if a[i][i] == 1:
+                num_of_node += 1
+            else:
+                break
+        accuracy += 1 - (np.sum(abs(a[:num_of_node][:num_of_node] - a_hat[:num_of_node][:num_of_node])) / (num_of_node * num_of_node))
+        if printMatrix:
+	        print('=====')
+	        print('A:')
+	        print(a)
+	        print('A_hat_raw:')
+	        print(a_hat_raw)
+	        print('A_hat_discretized:')
+	        print(a_hat)
+	        print('=====')
+    accuracy /= len(A)
+    print("accuracy:", accuracy)

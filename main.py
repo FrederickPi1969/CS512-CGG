@@ -13,6 +13,7 @@ from discretize import *
 from visualization import *
 
 
+np.set_printoptions(linewidth=np.inf)
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -27,21 +28,20 @@ if __name__ == "__main__":
     range_of_linkage_probability_p = "0.0, 1.0" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
     dataArgs["p_range"] = [float(range_of_linkage_probability_p.split(",")[0]), float(range_of_linkage_probability_p.split(",")[1])]
 
-    node_attributes = "uniform" #@param ["none", "uniform", "degree", "p_value", "random"]
+    node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "1000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "15000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
-    A, Attr, Param, Topol = generate_data(dataArgs)
-    g, a, attr = unpad_data(A[0], Attr[0])
-
+    A, Attr, Param, Topol = generate_data_v2(dataArgs)
+    # g, a, attr = unpad_data(A[0], Attr[0])
 
     ####################     Model parameters     #######################################################
     modelArgs = {"gnn_filters": 2, "conv_filters": 16, "kernel_size": 3}
 
-    number_of_latent_variables= "10" #@param [1, 2, 3, 4, 5]
+    number_of_latent_variables= "20" #@param [1, 2, 3, 4, 5]
     modelArgs["latent_dim"] = int(number_of_latent_variables)
 
     trainArgs = dict()
@@ -83,14 +83,15 @@ if __name__ == "__main__":
     Param_test = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"])*Param.shape[0]):]), trainArgs["batch_size"])
     Topol_test = generate_batch(torch.from_numpy(Topol[int((1-trainArgs["data_split"])*Topol.shape[0]):]), trainArgs["batch_size"])
 
-    # print(A_train.shape)
-    # print(len(Attr_train), Attr_train[0].shape)
+    print(A_train.shape)
+    print(len(Attr_train), Attr_train[0].shape)
 
     ## build graph_conv_filters
     SYM_NORM = True
     A_train_mod = generate_batch(preprocess_adj_tensor_with_identity(torch.squeeze(A_train, -1), SYM_NORM), trainArgs["batch_size"])
     A_validate_mod = generate_batch(preprocess_adj_tensor_with_identity(torch.squeeze(A_validate, -1), SYM_NORM), trainArgs["batch_size"])
     A_test_mod = generate_batch(preprocess_adj_tensor_with_identity(torch.squeeze(A_test, -1), SYM_NORM), trainArgs["batch_size"])
+
     A_train = generate_batch(A_train, trainArgs["batch_size"])
     A_validate = generate_batch(A_validate, trainArgs["batch_size"])
     A_test = generate_batch(A_test, trainArgs["batch_size"])
@@ -99,9 +100,9 @@ if __name__ == "__main__":
     validate_data = (Attr_validate, A_validate_mod, Param_validate, Topol_validate)
     test_data = (Attr_test, A_test_mod, Param_test, Topol_test)
 
-    # attribute first -> (n, 1), adjacency second -> (n, n, 1)
-    modelArgs["input_shape"], modelArgs["output_shape"] = ((Attr_train[0].shape[1], 1), (int(A_train_mod[0].shape[1] / modelArgs["gnn_filters"]), A_train_mod[0].shape[2], 1)),\
-                                                          ((Attr_test[0].shape[1], 1), (int(A_test_mod[0].shape[1] / modelArgs["gnn_filters"]), A_test_mod[0].shape[2], 1))
+    # attribute first -> (n, n), adjacency second -> (n, n, 1)
+    modelArgs["input_shape"], modelArgs["output_shape"] = ((Attr_train[0].shape[1], Attr_train[0].shape[2]), (int(A_train_mod[0].shape[1] / modelArgs["gnn_filters"]), A_train_mod[0].shape[2], 1)),\
+                                                          ((Attr_test[0].shape[1], Attr_test[0].shape[1]), (int(A_test_mod[0].shape[1] / modelArgs["gnn_filters"]), A_test_mod[0].shape[2], 1))
     # print(modelArgs["input_shape"], modelArgs["output_shape"])
     # print(A_train[0].shape)
 
@@ -111,16 +112,14 @@ if __name__ == "__main__":
     # decoder = Decoder(modelArgs, trainArgs, device).to(device)
     # A_hat, attr_hat = decoder(z)
 
-    vae = VAE(modelArgs, trainArgs,device).to(device)
+    vae = VAE_v2(modelArgs, trainArgs,device).to(device)
     optimizer = optim.Adam(vae.parameters(), lr=trainArgs["lr"], weight_decay=1e-5)
     # A_hat, attr_hat = vae(Attr_train[0].float().to(device), A_train_mod[0].float().to(device))
 
-    np_losses = []
     train_losses = []
     validation_losses = []
-    np_validation_losses = []
     batched_z = []
-    batched_A_hat =[]
+    batched_A_hat = []
     batched_Attr_hat = []
     batched_gcn_filters_from_A_hat = []
     batched_z_test = []
@@ -133,9 +132,7 @@ if __name__ == "__main__":
         print("Epoch {} / {}".format(e + 1, trainArgs["epochs"]))
         # for i in tqdm(range(len(Attr_train)), leave=True):
         loss_cum = 0
-        np_loss = 0
         vae.train()
-
         for i in range(len(Attr_train)):
             optimizer.zero_grad()
             attr = Attr_train[i].float().to(device)
@@ -156,18 +153,13 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            n,p,n_hat,p_hat,loss = computeNP(A.cpu(), A_hat.detach())
-            np_loss += loss
-
-
-        print("At Epoch {}, training loss {}, np loss {}".format(e + 1, loss_cum / len(Attr_train), np_loss / len(Attr_train)))
+        print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(Attr_train)))
         train_losses.append(loss_cum / len(Attr_train))
-        np_losses.append(np_loss / len(Attr_train))
+
         ### validation dataset
         vae.eval()
         with torch.no_grad():
             loss_cum = 0
-            np_loss = 0
             for i in range(len(Attr_validate)):
                 attr = Attr_validate[i].float().to(device)
                 A = A_validate[i].float().to(device)
@@ -176,9 +168,6 @@ if __name__ == "__main__":
                 z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
                 loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
                 loss_cum += loss.item()
-                
-                n,p,n_hat,p_hat,loss = computeNP(A.cpu(), A_hat.detach())
-                np_loss += loss
 
                 if e + 1 == trainArgs["epochs"]:
                     batched_z_test.append(z.detach())
@@ -187,25 +176,26 @@ if __name__ == "__main__":
                     temp = A_hat.detach().cpu()
                     batched_gcn_filters_from_A_hat_test.append(preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False))
 
-                print(torch.mean(list(vae.parameters())[0].grad))
+                # print(torch.mean(list(vae.parameters())[0].grad))
 
-        print("At Epoch {}, validation loss {}, np loss {}".format(e + 1, loss_cum / len(Attr_validate), np_loss / len(Attr_train)))
+        print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(Attr_validate)))
         validation_losses.append(loss_cum / len(Attr_validate))
-        np_validation_losses.append(np_loss / len(Attr_validate))
-    # drawGraph(A_train, batched_A_hat)
-    # showLoss("VAE", train_losses, validation_losses)
-    # showLoss("NP", np_losses, np_validation_losses)
 
+    # showLoss("VAE", train_losses, validation_losses)
+    # drawGraph(A_train, batched_A_hat)
+    # debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, "hard_threshold", True)
 
 
     ################ Training Discriminator
+    print('=========== debug ======')
     discriminator = Discriminator(modelArgs, device).to(device)
     optimizer_D = optim.Adam(discriminator.parameters(), lr = 0.001)
+    print('=========== debug ==== ')
 
     ## first train discriminatorm using old generated A_hat from last epoch and real A
     print("\n\n====================================================================================================")
     print("Training Discriminator...")
-    epochs = 20 ######################## change epoch here
+    epochs = 10 ######################## change epoch here
     loss_train, loss_test = [],[]
     for e in range(epochs):
 
@@ -283,7 +273,7 @@ if __name__ == "__main__":
     optimizer_w = optim.Adam([a_w1, a_w2, a_b1, a_b2, w], lr=0.001) ################################ adjust lr here!!!!!
 
     ### Initialize generator
-    generator = Decoder(modelArgs, trainArgs, device).to(device)
+    generator = Decoder_v2(modelArgs, trainArgs, device).to(device)
 
     decoder_weight = dict(vae.decoder.named_parameters())
     generator_weight = dict(generator.named_parameters())
@@ -297,7 +287,7 @@ if __name__ == "__main__":
     print("start w training...")
 
     transform = EdgeTransform()
-    w_epochs = 20  ################################# adjust epoch here!!!
+    w_epochs = 35  ################################# adjust epoch here!!!
     discriminator.eval()
     loss_train = []
     w_A_train = []
@@ -346,13 +336,13 @@ if __name__ == "__main__":
             loss_w.backward()
             loss_cum += loss_w.item()
             optimizer_w.step()
-            print(w.grad)
+            # print(w.grad)
 
             if e + 1 == w_epochs:
                 w_A_train.append(A)
                 w_A_hat_train.append(A_hat)
                 w_edit_A_hat_train.append(edit_A)
-                gen_A = gen_A.detach().numpy().squeeze(-1)
+                gen_A = gen_A.detach().cpu().numpy().squeeze(-1)
                 discretizer = Discretizer(gen_A, gen_A)
                 gen_A = discretizer.discretize('hard_threshold')
                 gen_A = torch.unsqueeze(torch.from_numpy(gen_A), -1)
@@ -361,7 +351,7 @@ if __name__ == "__main__":
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
+    drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, sample_size=6)
     showLoss("w", loss_train)
 
 

@@ -57,8 +57,15 @@ class Discretizer(object):
         res = copy.deepcopy(self.A_hat)
         batch_size = self.A_hat.shape[0]
         for i in range(batch_size):
-            res[i][self.A_hat[i] > threshold] = 1
-            res[i][self.A_hat[i] <= threshold] = 0
+            for j in range(len(self.A_hat[i])):
+                for k in range(j, len(self.A_hat[i])):
+                    val = (self.A_hat[i][j][k] + self.A_hat[i][k][j]) / 2
+                    if val >= threshold:
+                        res[i][j][k] = 1
+                        res[i][k][j] = 1
+                    else:
+                        res[i][j][k] = 0
+                        res[i][k][j] = 0
         assert res.shape == self.A.shape
         return res
 
