@@ -38,8 +38,9 @@ def densify_to(Graph, target_density = 1):
     return G
 
 # densify via triad closing
-def densify(Graph, increase_density = 0.1):
-    G = copy.deepcopy(Graph)
+def densify(G, increase_density = 0.1):
+    if G.number_of_nodes() < 3:
+        return G
     target_density = nx.transitivity(G) + increase_density
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
     while nx.transitivity(G) < min(target_density, 1):
@@ -54,9 +55,13 @@ def densify(Graph, increase_density = 0.1):
 
 # densify via triad closing
 def densify_sigmoid(G, increase_density = 1):
-    current_density = max(min(nx.transitivity(G), 0.99), 0.01)
+    if G.number_of_nodes() < 3:
+        return G
+    current_density = max(min(nx.transitivity(G), 0.9999999), 0.0000001)
+    print("current density: " + str(current_density))
     target_sigmoid = np.log(current_density / (1 - current_density)) + increase_density
     target_density = 1 / (1 + np.exp(0 - target_sigmoid))
+    print("target density: " + str(target_density))
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
     while nx.transitivity(G) < min(target_density, 1):
         while centerlist and centerlist[0][0] == 1:
@@ -64,6 +69,7 @@ def densify_sigmoid(G, increase_density = 1):
         if not centerlist:
             break
         candidates = permutations(list(G.nodes()), r = 2) - G.edges()
+        ##print(candidates)
         G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
         centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
     return G
@@ -98,8 +104,9 @@ def sparsify(Graph, decrease_density = 0.1):
     return G
 
 # sparsify via triad breaking
-def sparsify_coherent_test(Graph, decrease_density = 0.1):
-    G = copy.deepcopy(Graph)
+def sparsify_coherent_test(G, decrease_density = 0.1):
+    if G.number_of_nodes() < 3:
+        return G
     target_density = nx.transitivity(G) - decrease_density
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
     while nx.transitivity(G) > max(target_density, 0):
@@ -114,9 +121,13 @@ def sparsify_coherent_test(Graph, decrease_density = 0.1):
 
 # sparsify via triad breaking
 def sparsify_sigmoid(G, decrease_density = 0.1):
-    current_density = max(min(nx.transitivity(G), 0.99), 0.01)
+    if G.number_of_nodes() < 3:
+        return G
+    current_density = max(min(nx.transitivity(G), 0.9999999), 0.0000001)
+    print("current density: " + str(current_density))
     target_sigmoid = np.log(current_density / (1 - current_density)) - decrease_density
     target_density = 1 / (1 + np.exp(0 - target_sigmoid))
+    print("target density: " + str(target_density))
 
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
     while nx.transitivity(G) > max(target_density, 0):
