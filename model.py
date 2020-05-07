@@ -175,7 +175,7 @@ class Decoder_v2(nn.Module):
         A_hat = x.bmm(x.transpose(-1,-2)) # (b,n,n)
         max_score_per_node, _ = A_hat.max(dim=-1, keepdim=True)
         min_score_per_node, _ = A_hat.min(dim=-1, keepdim=True)
-        A_hat = ((A_hat-min_score_per_node) / (max_score_per_node + 1e-13)).clamp(0.01, 0.99).unsqueeze(-1)
+        A_hat = ((A_hat-min_score_per_node) / (max_score_per_node - min_score_per_node + 1e-13)).clamp(0.01, 0.99).unsqueeze(-1)
         # print(A_hat)
 
         # decoding node attributes:
