@@ -59,7 +59,8 @@ class Discretizer(object):
         for i in range(batch_size):
             for j in range(len(self.A_hat[i])):
                 for k in range(j, len(self.A_hat[i])):
-                    val = (self.A_hat[i][j][k] + self.A_hat[i][k][j]) / 2
+                    # val = (self.A_hat[i][j][k] + self.A_hat[i][k][j]) / 2
+                    val = max(self.A_hat[i][j][k], self.A_hat[i][k][j])
                     if val >= threshold:
                         res[i][j][k] = 1
                         res[i][k][j] = 1

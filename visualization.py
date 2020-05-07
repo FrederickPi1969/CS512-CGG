@@ -12,13 +12,16 @@ def showLoss(modelName, train_losses, validation_losses=None):
 	plt.legend()
 	plt.show()
 
-def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, sample_size=2):
+def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, w_alpha=None, sample_size=2):
 	# sampling
-	edit_A, gen_A, edit_A_sample, gen_A_sample, col_size = None, None, None, None, 2
+	edit_A, gen_A, edit_A_sample, gen_A_sample, w_alpha, col_size = None, None, None, None, None, 2
 	if edit_train:
 		col_size = 4
 	has_edit_graph = False
 	max_n_node = A_train[0].shape[1]
+	if type(A_train) != list:
+		A_train = [A_train]
+		batched_A_hat = [batched_A_hat]
 	a = reshapeMatrix(A_train[0].cpu().numpy().squeeze(-1))
 	a_hat = reshapeMatrix(batched_A_hat[0].cpu().numpy().squeeze(-1))
 	if edit_train != None:
@@ -33,6 +36,7 @@ def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, sample_
 		A_str = " A hat"
 		A_hat_str = "Edit A hat"
 	else:
+		assert a.shape[0] == a_hat.shape[0]
 		sample_space_size = a_hat.shape[0]
 		sample_idx = np.random.choice(range(sample_space_size), sample_size, replace=False)
 		a_sample = a[sample_idx]
@@ -131,17 +135,31 @@ def debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, discret
 
     discretizer = Discretizer(A, A_hat)
     A_hat = discretizer.discretize(discretize_method)
+    recall = 0
     accuracy = 0
+    precision = 0
     for i,a in enumerate(A):
         a_hat = A_hat[i]
         a_hat_raw = A_hat_raw[i]
         num_of_node = 0
-        for i in range(len(a)):
-            if a[i][i] == 1:
-                num_of_node += 1
-            else:
-                break
-        accuracy += 1 - (np.sum(abs(a[:num_of_node][:num_of_node] - a_hat[:num_of_node][:num_of_node])) / (num_of_node * num_of_node))
+        # for i in range(len(a)):
+        #     if a[i][i] == 1:
+        #         num_of_node += 1
+        #     else:
+        #         break
+        # accuracy += 1 - (np.sum(abs(a[:num_of_node][:num_of_node] - a_hat[:num_of_node][:num_of_node])) / (num_of_node * num_of_node))
+        accuracy += 1 - (np.sum(abs(a - a_hat)) / (a.shape[0] * a.shape[0]))
+        true_positive = 0
+        false_negative = 0
+        for r in range(a.shape[0]):
+        	for c in range(a.shape[0]):
+        		if a_hat[r][c] == a[r][c] and a_hat[r][c] == 1:
+        			true_positive += 1 
+        		if a_hat[r][c] == 0 and a[r][c] == 1:
+        			false_negative += 1
+        if np.sum(a_hat) != 0:
+        	precision += true_positive / np.sum(a_hat)
+        recall += true_positive / (true_positive + false_negative)
         if printMatrix:
 	        print('=====')
 	        print('A:')
@@ -152,4 +170,10 @@ def debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, discret
 	        print(a_hat)
 	        print('=====')
     accuracy /= len(A)
+    precision /= len(A)
+    recall /= len(A)
+    f1_score = (2*precision*recall) / (precision+recall)
     print("accuracy:", accuracy)
+    print("precision:", precision)
+    print("recall:", recall)
+    print("f1 score:", f1_score)

@@ -83,8 +83,8 @@ if __name__ == "__main__":
     Param_test = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"])*Param.shape[0]):]), trainArgs["batch_size"])
     Topol_test = generate_batch(torch.from_numpy(Topol[int((1-trainArgs["data_split"])*Topol.shape[0]):]), trainArgs["batch_size"])
 
-    print(A_train.shape)
-    print(len(Attr_train), Attr_train[0].shape)
+    # print(A_train.shape)
+    # print(len(Attr_train), Attr_train[0].shape)
 
     ## build graph_conv_filters
     SYM_NORM = True
@@ -121,12 +121,12 @@ if __name__ == "__main__":
     batched_z = []
     batched_A_hat = []
     batched_Attr_hat = []
+    batched_A_hat_discretized = []
     batched_gcn_filters_from_A_hat = []
     batched_z_test = []
     batched_A_hat_test = []
     batched_Attr_hat_test = []
     batched_gcn_filters_from_A_hat_test = []
-
     print("\n\n =================Start Training=====================")
     for e in range(trainArgs["epochs"]):
         print("Epoch {} / {}".format(e + 1, trainArgs["epochs"]))
@@ -147,6 +147,12 @@ if __name__ == "__main__":
                 batched_A_hat.append(A_hat.detach())
                 temp = A_hat.detach().cpu()
                 batched_gcn_filters_from_A_hat.append(preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False))
+                A_discretize = A.cpu().squeeze().numpy()
+                A_hat_discretize = A_hat.detach().squeeze().numpy()
+                discretizer = Discretizer(A_discretize, A_hat_discretize)
+                A_hat_discretize = discretizer.discretize('hard_threshold')
+                A_hat_discretize = torch.unsqueeze(torch.from_numpy(A_hat_discretize), -1)
+                batched_A_hat_discretized.append(A_hat_discretize)
 
             loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
             loss_cum += loss.item()
@@ -183,7 +189,9 @@ if __name__ == "__main__":
 
     # showLoss("VAE", train_losses, validation_losses)
     # drawGraph(A_train, batched_A_hat)
-    # debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, "hard_threshold", True)
+    # drawGraph(A_train, batched_A_hat_discretized, sample_size=6)
+    # debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, discretize_method="vote_mapping", printMatrix=False)
+    # sys.exit(0)
 
 
     ################ Training Discriminator
@@ -296,25 +304,25 @@ if __name__ == "__main__":
     w_gen_A_hat_train = []
     for e in range(w_epochs):
         loss_cum = 0
-        for i in tqdm(range(len(batched_A_hat))):
+        for i in tqdm(range(len(batched_A_hat_discretized))):
             optimizer_w.zero_grad()
 
             fil = batched_gcn_filters_from_A_hat[i].float().to(device)
             attr_hat = batched_Attr_hat[i].float().to(device)
-            A_hat = batched_A_hat[i].to(device)
-            # A = A_train[i]
+            # A_hat = batched_A_hat[i].to(device)
+            A_hat = batched_A_hat_discretized[i].to(device)
+            A = A_train[i]
             z = batched_z[i].to(device)
 
             ## discretize
-            A = A_train[i].cpu().numpy().squeeze(-1)
-            A_hat = A_hat.cpu().numpy().squeeze(-1)
-            discretizer = Discretizer(A, A_hat)
-            A_hat = discretizer.discretize('hard_threshold')
-            A = torch.unsqueeze(torch.from_numpy(A), -1)
-            A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
+            # A = A_train[i].cpu().numpy().squeeze(-1)
+            # A_hat = A_hat.cpu().numpy().squeeze(-1)
+            # discretizer = Discretizer(A, A_hat)
+            # A_hat = discretizer.discretize('hard_threshold')
+            # A = torch.unsqueeze(torch.from_numpy(A), -1)
+            # A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
 
             _, alpha_edit = transform.get_train_alpha(A_hat)  # input continuous as default, need discretization!!!
-
             alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
             # from_numpy
             ## first get edit and D(edit(G(z)))
@@ -343,8 +351,8 @@ if __name__ == "__main__":
                 w_A_hat_train.append(A_hat)
                 w_edit_A_hat_train.append(edit_A)
                 gen_A = gen_A.detach().cpu().numpy().squeeze(-1)
-                discretizer = Discretizer(gen_A, gen_A)
-                gen_A = discretizer.discretize('hard_threshold')
+                discretizer_gen_A = Discretizer(gen_A, gen_A)
+                gen_A = discretizer_gen_A.discretize('hard_threshold')
                 gen_A = torch.unsqueeze(torch.from_numpy(gen_A), -1)
                 w_gen_A_hat_train.append(gen_A)
 

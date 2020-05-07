@@ -237,7 +237,7 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
 
     # print(torch.min(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()))
     kl_loss = -0.5 * torch.sum((1 + z_log_var - z_mean.pow(2) - z_log_var.exp()), dim = -1) ######## ??????????
-    print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss, torch.mean(trainArgs["loss_weights"][2] * kl_loss))
+    # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss, torch.mean(trainArgs["loss_weights"][2] * kl_loss))
 
     # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss,  trainArgs["loss_weights"][2] * kl_loss)
     loss = torch.mean(trainArgs["loss_weights"][0] * adj_reconstruction_loss + trainArgs["loss_weights"][1] * attr_reconstruction_loss +  trainArgs["loss_weights"][2] * kl_loss)
@@ -251,6 +251,5 @@ def w_loss_func(y, y_hat, feature_true, feature_fake, alpha, beta):
     feature_similarity_loss = mse(feature_true, feature_fake)
     # return alpha * entropy_loss + beta * feature_similarity_loss
     return feature_similarity_loss
-
 
 
