@@ -108,10 +108,6 @@ def remove_edge_coherent(Graph, n = 1, descending = True):
     edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in G.edges()], reverse = descending)
     for j in range(min(n, len(edgelist))):
         G.remove_edge(*edgelist[j][1])
-
-    ##for node in G.nodes():
-    ##    if G.degree(node) == 0:
-    ##        G.remove_node(node)
     return G
 
 def remove_edge_difference(Graph, n = 1):
@@ -119,10 +115,6 @@ def remove_edge_difference(Graph, n = 1):
     edgelist = sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in G.edges()])
     for j in range(min(n, len(edgelist))):
         G.remove_edge(*edgelist[j][1])
-        
-    for node in G.nodes():
-        if G.degree(node) == 0:
-            G.remove_node(node)
     return G
 
 def add_node(Graph, namelist = None, n = 1, m = 1, descending = True):
@@ -142,8 +134,4 @@ def remove_node(Graph, n = 1, descending = False):
     print(nodelist)
     for j in range(min(n, len(nodelist))):
         G.remove_node(nodelist[j][1])
-
-    for node in G.nodes():
-        if G.degree(node) == 0:
-            G.remove_node(node)
     return G
