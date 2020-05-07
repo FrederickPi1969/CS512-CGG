@@ -188,8 +188,8 @@ if __name__ == "__main__":
         validation_losses.append(loss_cum / len(Attr_validate))
 
     # showLoss("VAE", train_losses, validation_losses)
-    # drawGraph(A_train, batched_A_hat)
-    # drawGraph(A_train, batched_A_hat_discretized, sample_size=6)
+    # drawGraph(A_train, batched_A_hat, showGraph=False)
+    # drawGraph(A_train, batched_A_hat_discretized, showGraph=False, sample_size=6)
     # debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, discretize_method="vote_mapping", printMatrix=False)
     # sys.exit(0)
 
@@ -350,16 +350,12 @@ if __name__ == "__main__":
                 w_A_train.append(A)
                 w_A_hat_train.append(A_hat)
                 w_edit_A_hat_train.append(edit_A)
-                gen_A = gen_A.detach().cpu().numpy().squeeze(-1)
-                discretizer_gen_A = Discretizer(gen_A, gen_A)
-                gen_A = discretizer_gen_A.discretize('hard_threshold')
-                gen_A = torch.unsqueeze(torch.from_numpy(gen_A), -1)
                 w_gen_A_hat_train.append(gen_A)
 
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, sample_size=6)
+    drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, showGraph=False, sample_size=6)
     showLoss("w", loss_train)
 
 
