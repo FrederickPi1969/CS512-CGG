@@ -165,7 +165,8 @@ def debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, discret
 					false_negative += 1
 		if np.sum(a_hat) != 0:
 			precision += true_positive / np.sum(a_hat)
-		recall += true_positive / (true_positive + false_negative)
+		if true_positive + false_negative > 0:
+			recall += true_positive / (true_positive + false_negative)
 		if printMatrix:
 			print('=====')
 			print('A:')
