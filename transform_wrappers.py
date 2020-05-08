@@ -13,6 +13,7 @@ class GraphTransform:
         self.sigmoid = sigmoid
     
     def get_train_alpha(self, graph_adj_tensors):
+<<<<<<< HEAD
         if self.sigmoid:
             alpha_val = np.random.uniform(-4, 4)
         else:
