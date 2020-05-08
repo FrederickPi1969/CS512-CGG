@@ -4,6 +4,7 @@ import string
 import random
 import queue
 import copy
+import math
 from itertools import combinations, permutations
 
 sigmoid_upper_bound = 0.999
@@ -78,24 +79,24 @@ def modify_density(G, alpha = 0.0, sigmoid = False):
         while nx.density(G) > max(target_density, 0):
             G.remove_edge(*edgelist[i][1])
             i += 1    
-        
     return G
 
-def add_node(Graph, namelist = None, n = 1, m = 1, descending = True):
-    G = copy.deepcopy(Graph)
-    namelist = namelist if namelist else [len(G) + i for i in range(n)]
-    for i in range(min(n, len(namelist))):
-        nodelist = sorted([(G.degree[i], i) for i in G.nodes()], reverse = descending)
-        G.add_node(namelist[i])
-        for j in range(min(m, len(nodelist))):
-            G.add_edge(namelist[i], nodelist[j][1])
+def modify_node_count(G, alpha = 0, max_nodes = 12):
+    if alpha > 0:
+        nodes_to_add = min(alpha, max_nodes - G.number_of_nodes())
+        current_density = nx.density(G)
+        namelist = [G.number_of_nodes() + i for i in range(nodes_to_add)]
+        for i in range(nodes_to_add):
+            nodelist = sorted([(G.degree[i], i) for i in G.nodes()], reverse = True)
+            G.add_node(namelist[i])
+            for j in range(int(current_density * (G.number_of_nodes() - 1))):
+                G.add_edge(namelist[i], nodelist[j][1])
+    else:
+        nodes_to_remove = min(0 - alpha, G.number_of_nodes())
+        current_density = nx.density(G)
+        for i in range(nodes_to_remove):
+            nodelist = sorted([(abs(G.degree[i] / (G.number_of_nodes() - 1) - current_density), i) for i in G.nodes()], reverse = True)
+            G.remove_node(nodelist[0][1])
+
     return G
 
-
-def remove_node(Graph, n = 1, descending = False):
-    G = copy.deepcopy(Graph)
-    nodelist = sorted([(G.degree[i], i) for i in G.nodes()], reverse = descending)
-    print(nodelist)
-    for j in range(min(n, len(nodelist))):
-        G.remove_node(nodelist[j][1])
-    return G

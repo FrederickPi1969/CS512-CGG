@@ -35,9 +35,8 @@ def reshapeMatrix(matrixList):
 add padding to matrix to desire shape
 """
 def padMatrix(matrixInput, max_n_node):
-    matrix = copy.deepcopy(matrixInput)
-    n = len(matrix)
-    return np.pad(matrix, [(0, max_n_node-n), (0, max_n_node-n)], mode='constant', constant_values=0)
+    n = len(matrixInput)
+    return np.pad(matrixInput, [(0, max_n_node-n), (0, max_n_node-n)], mode='constant', constant_values=0)
 
 def computeNP(A, A_hat):
     batch_size = len(A)
@@ -630,10 +629,15 @@ def torch_tensor_to_graphs(tensors, graph_node_counts):
     graphs_adj_matrices = list(np.squeeze(tensors.numpy()))
     #print([np.sum(np.diag(g)) - h for g, h in zip(graphs_adj_matrices, graph_node_counts)])
     graphs_adj_matrices = [g[0:h, 0:h] for g, h in zip(graphs_adj_matrices, graph_node_counts)]
+    for graph in graphs_adj_matrices:
+        graph = np.fill_diagonal(graph, 0)
     return [nx.convert_matrix.from_numpy_matrix(g) for g in graphs_adj_matrices]
 
 def graphs_to_torch_tensor(graphs, original_size):
-    edited_adj_matrices = [padMatrix(nx.adjacency_matrix(g).todense(), original_size) if g.number_of_nodes() != 0 else np.zeros(original_size) for g in graphs]
+    edited_adj_matrices = [nx.adjacency_matrix(g).todense() for g in graphs]
+    for matrix in edited_adj_matrices:
+        matrix = np.fill_diagonal(matrix, 1)
+    edited_adj_matrices = [padMatrix(g, original_size) for g in edited_adj_matrices]
     #print(edited_adj_matrices)
     return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices).astype(float)), -1)
     

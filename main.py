@@ -32,7 +32,7 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "150" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "15000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -72,7 +72,6 @@ if __name__ == "__main__":
     A_train = torch.from_numpy(A[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*A.shape[0])])
     Attr_train = generate_batch(torch.from_numpy(Attr[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Attr.shape[0])]), trainArgs["batch_size"])
     Param_train = generate_batch(torch.from_numpy(Param[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Param.shape[0])]), trainArgs["batch_size"])
-    print(Param_train)
     Topol_train = generate_batch(torch.from_numpy(Topol[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Topol.shape[0])]), trainArgs["batch_size"])
 
     A_validate = torch.from_numpy(A[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*A.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])])
@@ -307,8 +306,8 @@ if __name__ == "__main__":
     print("start w training...")
 
     discriminator.eval()
-    ## operation = "transitivity", "density"
-    transform = GraphTransform(dataArgs["max_n_node"], operation = "transitivity", sigmoid = True)
+    ## operation = "transitivity", "density", "node_count"
+    transform = GraphTransform(dataArgs["max_n_node"], operation = "node_count", sigmoid = True)
     w_epochs = 25  ################################# adjust epoch here!!!
 
     loss_train = []
@@ -376,8 +375,8 @@ if __name__ == "__main__":
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
-    debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
+    ## debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
+    #debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
     drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
     drawGraphSaveFigure(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, clearImage=True)
     showLoss("w", loss_train)
