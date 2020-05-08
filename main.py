@@ -17,6 +17,7 @@ np.set_printoptions(linewidth=np.inf)
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    # device = "cpu"
     print(device)
 
     ####################     Generation parameters     #######################################################
@@ -31,7 +32,7 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "15000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "1500" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -153,7 +154,7 @@ if __name__ == "__main__":
                 temp = A_hat.detach().cpu()
                 batched_gcn_filters_from_A_hat.append(preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False))
                 A_discretize = A.cpu().squeeze().numpy()
-                A_hat_discretize = A_hat.detach().squeeze().numpy()
+                A_hat_discretize = A_hat.detach().cpu().squeeze().numpy()
                 discretizer = Discretizer(A_discretize, A_hat_discretize)
                 A_hat_discretize = discretizer.discretize('hard_threshold')
                 A_hat_discretize = torch.unsqueeze(torch.from_numpy(A_hat_discretize), -1)

@@ -13,13 +13,13 @@ class DensityTransform:
     
     def get_train_alpha(self, graph_adj_tensors):
         # graphs_adj_matrices = reshapeMatrix(list(np.squeeze(graph_adj_tensors.numpy())))
-        graphs_adj_matrices = list(np.squeeze(graph_adj_tensors.numpy()))
+        graphs_adj_matrices = list(np.squeeze(graph_adj_tensors.cpu().numpy()))
         alpha_val = np.random.uniform(-0.2, 0.2)
         return (alpha_val, alpha_val)
 
     # transform graph based on alpha
     def get_target_graph(self, alpha, graph_adj_tensors):
-        graphs_adj_matrices = list(np.squeeze(graph_adj_tensors.numpy()))
+        graphs_adj_matrices = list(np.squeeze(graph_adj_tensors.cpu().numpy()))
         #print([g for g in graphs_adj_matrices])
         graph_shape = graphs_adj_matrices[0].shape
         graphs_adj_matrices = reshapeMatrix(graphs_adj_matrices)
