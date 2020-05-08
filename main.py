@@ -32,7 +32,7 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "1500" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "150" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -219,10 +219,9 @@ if __name__ == "__main__":
     for e in range(epochs):
 
         loss_cum = 0
-        discriminator.train()
 
         for i in range(len(batched_z)):
-
+            discriminator.train()
             fil = batched_gcn_filters_from_A_hat[i].float().to(device)
             attr_hat = batched_Attr_hat[i].float().to(device)
             A_hat = batched_A_hat[i].to(device)
@@ -248,6 +247,7 @@ if __name__ == "__main__":
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_z)))
 
         with torch.no_grad():
+            discriminator.eval()
             loss_cum = 0
             discriminator.eval()
             for i in range(len(batched_z_test)):
@@ -305,9 +305,10 @@ if __name__ == "__main__":
     print("\n\n=================================================================================")
     print("start w training...")
 
-    transform = DensityTransform()
-    w_epochs = 35  ################################# adjust epoch here!!!
     discriminator.eval()
+    transform = DensityTransform()
+    w_epochs = 5  ################################# adjust epoch here!!!
+
     loss_train = []
     w_A_train = []
     w_A_hat_train = []
@@ -373,11 +374,11 @@ if __name__ == "__main__":
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    # debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
-    # debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
-    # drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
-    # drawGraphSaveFigure(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, clearImage=True)
-    # showLoss("w", loss_train)
+    debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
+    debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
+    drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
+    drawGraphSaveFigure(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, clearImage=True)
+    showLoss("w", loss_train)
 
 
 

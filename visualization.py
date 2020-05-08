@@ -28,7 +28,7 @@ def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, w_alpha
 		edit_A = reshapeMatrix(edit_train[0].cpu().numpy().squeeze(-1))
 		has_edit_graph = True
 	if gen_A_train != None:
-		gen_A = gen_A_train[0].detach().numpy().squeeze(-1)
+		gen_A = gen_A_train[0].detach().cpu().numpy().squeeze(-1)
 		discretizer_gen_A = Discretizer(gen_A, gen_A)
 		gen_A = discretizer_gen_A.discretize('hard_threshold')
 		gen_A = reshapeMatrix(gen_A)
@@ -160,7 +160,7 @@ def drawGraphSaveFigure(A_train, batched_A_hat, edit_train=None, gen_A_train=Non
 		edit_A = reshapeMatrix(edit_train[0].cpu().numpy().squeeze(-1))
 		has_edit_graph = True
 	if gen_A_train != None:
-		gen_A = gen_A_train[0].detach().numpy().squeeze(-1)
+		gen_A = gen_A_train[0].detach().cpu().numpy().squeeze(-1)
 
 	if len(a.shape) == 2:
 		a_sample = [a]
@@ -267,11 +267,11 @@ def debugDiscretizer(gew_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen
 			gen_A_min.extend(gen_A_min_train[i])
 			gen_A_normal.extend(w_gen_A_hat_train[i])
 
-		gen_A = torch.stack(gen_A).squeeze().numpy()
+		gen_A = torch.stack(gen_A).squeeze().cpu().numpy()
 		edit_A = torch.stack(edit_A).squeeze().numpy()
-		gen_A_max = torch.stack(gen_A_max).squeeze().numpy()
-		gen_A_min = torch.stack(gen_A_min).squeeze().numpy()
-		gen_A_normal = torch.stack(gen_A_normal).squeeze().numpy()
+		gen_A_max = torch.stack(gen_A_max).cpu().squeeze().numpy()
+		gen_A_min = torch.stack(gen_A_min).cpu().squeeze().numpy()
+		gen_A_normal = torch.stack(gen_A_normal).cpu().squeeze().numpy()
 
 		discretizer = Discretizer(gen_A_normal, gen_A_normal)
 		gen_A_discretize = discretizer.discretize(discretize_method)
@@ -344,7 +344,7 @@ def debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, batched
 		A.extend(A_validate[i])
 		A_hat.extend(batched_A_hat_test[i])
 	A = torch.stack(A).squeeze().numpy()
-	A_hat = torch.stack(A_hat).squeeze().numpy()
+	A_hat = torch.stack(A_hat).squeeze().cpu().numpy()
 	A_hat_raw = copy.deepcopy(A_hat)
 
 	discretizer = Discretizer(A, A_hat)
