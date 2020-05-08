@@ -567,7 +567,7 @@ def generate_data(dataArgs):
     print("\n============= Generating Data ===========================")
     for i in tqdm(range(0, dataArgs["n_graph"]), leave=True, position=0):
 
-        n = np.random.randint(1, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
+        n = np.random.randint(4, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
         p = np.random.uniform(dataArgs["p_range"][0], dataArgs["p_range"][1]) ## floating p from range
 
         g, a = generate_graph(n, p)
@@ -596,7 +596,7 @@ def generate_data_v2(dataArgs):
     print("\n============= Generating Data ===========================")
     for i in tqdm(range(0, dataArgs["n_graph"]), leave=True, position=0):
 
-        n = np.random.randint(1, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
+        n = np.random.randint(4, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
         p = np.random.uniform(dataArgs["p_range"][0], dataArgs["p_range"][1]) ## floating p from range
 
         g, a = generate_graph(n, p)
@@ -627,6 +627,18 @@ def generate_batch(data, batch_size=512):
         batched_data.append(data[index_low:index_high])
     return batched_data
 
+## returns graphs and graph dimensions 
+def torch_tensor_to_graphs(tensors, graph_node_counts):
+    graphs_adj_matrices = list(np.squeeze(tensors.numpy()))
+    #print([np.sum(np.diag(g)) - h for g, h in zip(graphs_adj_matrices, graph_node_counts)])
+    graphs_adj_matrices = [g[0:h, 0:h] for g, h in zip(graphs_adj_matrices, graph_node_counts)]
+    return [nx.convert_matrix.from_numpy_matrix(g) for g in graphs_adj_matrices]
+
+def graphs_to_torch_tensor(graphs, original_size):
+    edited_adj_matrices = [padMatrix(nx.adjacency_matrix(g).todense(), original_size) if g.number_of_nodes() != 0 else np.zeros(original_size) for g in graphs]
+    #print(edited_adj_matrices)
+    return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices).astype(float)), -1)
+    
 
 # def generate_dblp_data(dataArgs, load = False, save = True):
 #     if load:

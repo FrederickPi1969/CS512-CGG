@@ -71,6 +71,7 @@ if __name__ == "__main__":
     A_train = torch.from_numpy(A[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*A.shape[0])])
     Attr_train = generate_batch(torch.from_numpy(Attr[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Attr.shape[0])]), trainArgs["batch_size"])
     Param_train = generate_batch(torch.from_numpy(Param[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Param.shape[0])]), trainArgs["batch_size"])
+    print(Param_train)
     Topol_train = generate_batch(torch.from_numpy(Topol[:int((1-trainArgs["data_split"]-trainArgs["validation_split"])*Topol.shape[0])]), trainArgs["batch_size"])
 
     A_validate = torch.from_numpy(A[int((1-trainArgs["data_split"]-trainArgs["validation_split"])*A.shape[0]):int((1-trainArgs["data_split"])*Attr.shape[0])])
@@ -294,8 +295,9 @@ if __name__ == "__main__":
     print("\n\n=================================================================================")
     print("start w training...")
 
-    transform = EdgeTransform()
-    w_epochs = 35  ################################# adjust epoch here!!!
+    ## operation = "transitivity", "density"
+    transform = GraphTransform(dataArgs["max_n_node"], operation = "transitivity", sigmoid = True)
+    w_epochs = 25  ################################# adjust epoch here!!!
     discriminator.eval()
     loss_train = []
     w_A_train = []
@@ -327,7 +329,7 @@ if __name__ == "__main__":
             # from_numpy
             ## first get edit and D(edit(G(z)))
             edit_attr = attr_hat
-            edit_A = transform.get_target_graph(alpha_edit, A_hat)  # replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
+            edit_A = transform.get_target_graph(alpha_edit, A_hat, list(Param[:,0].astype(int)))  # replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
             temp = edit_A.detach().cpu()
             edit_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
             feature_edit, _ = discriminator(edit_attr.float(), edit_fil.float())
@@ -357,14 +359,3 @@ if __name__ == "__main__":
 
     drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, showGraph=False, sample_size=6)
     showLoss("w", loss_train)
-
-
-
-
-
-
-
-
-
-
-

@@ -6,76 +6,31 @@ import numpy as np
 import torch
 import networkx as nx
 
-class DensityTransform:
-    def __init__(self):
-        pass
-        self.output = None
+class GraphTransform:
+    def __init__(self, max_n_nodes, operation, sigmoid):
+        self.max_n_nodes = max_n_nodes
+        self.operation = operation
+        self.sigmoid = sigmoid
     
     def get_train_alpha(self, graph_adj_tensors):
-        # graphs_adj_matrices = reshapeMatrix(list(np.squeeze(graph_adj_tensors.numpy())))
-        graphs_adj_matrices = list(np.squeeze(graph_adj_tensors.numpy()))
-        alpha_val = np.random.uniform(-0.2, 0.2)
+        if self.sigmoid:
+            alpha_val = np.random.uniform(-4, 4)
+        else:
+            alpha_val = np.random.uniform(-0.2, 0.2)
         return (alpha_val, alpha_val)
 
     # transform graph based on alpha
-    def get_target_graph(self, alpha, graph_adj_tensors):
-        graphs_adj_matrices = list(np.squeeze(graph_adj_tensors.numpy()))
-        #print([g for g in graphs_adj_matrices])
-        graph_shape = graphs_adj_matrices[0].shape
-        graphs_adj_matrices = reshapeMatrix(graphs_adj_matrices)
-        #print([g.shape for g in graphs_adj_matrices])
+    def get_target_graph(self, alpha, graph_adj_tensors, graph_node_counts):
+        graphs = torch_tensor_to_graphs(graph_adj_tensors, graph_node_counts)
+        edited_graphs = None
         print(alpha)
-        if alpha > 0:
-            graphs = [nx.convert_matrix.from_numpy_matrix(g) for g in graphs_adj_matrices]
-            #print([nx.transitivity(g) for g in graphs])
-            edited_graphs = [densify(nx.convert_matrix.from_numpy_matrix(g), alpha) for g in graphs_adj_matrices]
-            #print([nx.transitivity(g) for g in edited_graphs])
-            self.output = [g.number_of_nodes() for g in edited_graphs]
+        if self.operation == "transitivity":
+            edited_graphs = [modify_transitivity(g, alpha) for g in graphs]
         else: 
-            graphs = [nx.convert_matrix.from_numpy_matrix(g) for g in graphs_adj_matrices]
-            #print([nx.transitivity(g) for g in graphs])
-            edited_graphs = [sparsify_coherent_test(nx.convert_matrix.from_numpy_matrix(g), 0 - alpha) for g in graphs_adj_matrices]
-            #print([nx.transitivity(g) for g in edited_graphs])
-            self.output = [g.number_of_nodes() for g in edited_graphs]
-        edited_adj_matrices = [padMatrix(nx.adjacency_matrix(g).todense(), graph_shape[0]) if g.number_of_nodes() != 0 else np.zeros(graph_shape) for g in edited_graphs]
-        return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices).astype(float)), -1)
+            edited_graphs = [modify_density(g, alpha) for g in graphs]
+        return graphs_to_torch_tensor(edited_graphs, self.max_n_nodes)
 
-    def print_output(self):
-        print(self.output)
-            
 
-## transform via adding edges
-class EdgeTransform:
-    def __init__(self):
-        pass
-    
-    def get_train_alpha(self, graph_adj_tensors):
-        graphs_adj_matrices = reshapeMatrix(list(np.squeeze(graph_adj_tensors.numpy())))
-        alpha_val = np.random.uniform(0, 1)
-        coin = np.random.uniform(0, 1)
-        if coin <= 0.5:
-            scale = max([(g.shape[0] * (g.shape[0] - 1) / 2) - nx.convert_matrix.from_numpy_matrix(g).number_of_edges() for g in graphs_adj_matrices])
-            alpha_val *= scale
-            return (alpha_val, alpha_val)
-        else: 
-            scale = max([nx.convert_matrix.from_numpy_matrix(g).number_of_edges() for g in graphs_adj_matrices])
-            alpha_val *= scale
-            alpha_val = -alpha_val
-        return (alpha_val, alpha_val)
-
-    # transform graph based on alpha
-    def get_target_graph(self, alpha, graph_adj_tensors):
-        graphs_adj_matrices = list(np.squeeze(graph_adj_tensors.numpy()))
-        graph_shape = graphs_adj_matrices[0].shape
-        graphs_adj_matrices = reshapeMatrix(graphs_adj_matrices)
-        if alpha > 0:
-            edited_adj_matrices = [padMatrix(nx.adjacency_matrix(add_edge_coherent(nx.convert_matrix.from_numpy_matrix(g), int(round(alpha)))).todense(), graph_shape[0]) if g.shape != (0,0) else np.zeros(graph_shape) for g in graphs_adj_matrices]
-            return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices).astype(float)), -1)
-        else: 
-            edited_adj_matrices = [padMatrix(nx.adjacency_matrix(remove_edge_coherent(nx.convert_matrix.from_numpy_matrix(g), 0 - int(round(alpha)))).todense(), graph_shape[0]) if g.shape != (0,0) else np.zeros(graph_shape) for g in graphs_adj_matrices]
-            return torch.unsqueeze(torch.from_numpy(np.asarray(edited_adj_matrices).astype(float)), -1)
-
-## transform via adding nodes
 class NodeTransform:
     def __init__(self, max_graph_nodes = 12):
         self.max_graph_nodes = max_graph_nodes

@@ -6,6 +6,9 @@ import queue
 import copy
 from itertools import combinations, permutations
 
+sigmoid_upper_bound = 0.999
+sigmoid_lower_bound = 0.001
+
 # self multiply through kronecker product
 def self_multiply(G, n = 1):
     adj_matrix = nx.adjacency_matrix(G).todense()
@@ -23,142 +26,59 @@ def self_repetition(G, n = 1, linknode = 0):
         new_graph.add_edge(0, i * len(G) + linknode + 1)
     return new_graph
 
-# densify via triad closing
-def densify_to(Graph, target_density = 1):
-    G = copy.deepcopy(Graph)
-    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
-    while nx.transitivity(G) < min(target_density, 1):
-        while centerlist and centerlist[0][0] == 1:
-            centerlist.pop(0)
-        if not centerlist:
-            break
-        candidates = permutations(list(G.nodes()), r = 2) - G.edges()
-        G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
-        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
-    return G
-
-# densify via triad closing
-def densify(G, increase_density = 0.1):
+def modify_transitivity(G, alpha = 0.0, sigmoid = False):
     if G.number_of_nodes() < 3:
         return G
-    target_density = nx.transitivity(G) + increase_density
+    
+    target_density = nx.transitivity(G) + alpha
+    if sigmoid: 
+        current_density = max(min(nx.transitivity(G), sigmoid_upper_bound), sigmoid_lower_bound)
+        target_sigmoid = np.log(current_density / (1 - current_density)) + alpha
+        target_density = 1 / (1 + np.exp(0 - target_sigmoid))
+
     centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
-    while nx.transitivity(G) < min(target_density, 1):
-        while centerlist and centerlist[0][0] == 1:
-            centerlist.pop(0)
-        if not centerlist:
-            break
-        candidates = permutations(list(G.nodes()), r = 2) - G.edges()
-        G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
-        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
+    if alpha > 0:
+        while nx.transitivity(G) < min(target_density, 1):
+            while centerlist and centerlist[0][0] == 1:
+                centerlist.pop(0)
+            if not centerlist:
+                break
+            candidates = permutations(list(G.nodes()), r = 2) - G.edges()
+            G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
+            centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
+    else:		
+        while nx.transitivity(G) > max(target_density, 0):
+            while centerlist and centerlist[0][0] == 0:
+                centerlist.pop(0)
+            if not centerlist:
+                break
+            candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
+            G.remove_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
+            centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
+
     return G
 
-# densify via triad closing
-def densify_sigmoid(G, increase_density = 1):
-    if G.number_of_nodes() < 3:
+def modify_density(G, alpha = 0.0, sigmoid = False):
+    if G.number_of_nodes() < 2:
         return G
-    current_density = max(min(nx.transitivity(G), 0.9999999), 0.0000001)
-    print("current density: " + str(current_density))
-    target_sigmoid = np.log(current_density / (1 - current_density)) + increase_density
-    target_density = 1 / (1 + np.exp(0 - target_sigmoid))
-    print("target density: " + str(target_density))
-    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
-    while nx.transitivity(G) < min(target_density, 1):
-        while centerlist and centerlist[0][0] == 1:
-            centerlist.pop(0)
-        if not centerlist:
-            break
-        candidates = permutations(list(G.nodes()), r = 2) - G.edges()
-        ##print(candidates)
-        G.add_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
-        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
-    return G
+    target_density = nx.density(G) + alpha
+    if sigmoid:
+        current_density = max(min(nx.density(G), sigmoid_upper_bound), sigmoid_lower_bound)
+        target_sigmoid = np.log(current_density / (1 - current_density)) + alpha
+        target_density = 1 / (1 + np.exp(0 - target_sigmoid))
 
-# sparsify via triad breaking
-def sparsify_to(Graph, target_density = 0):
-    G = copy.deepcopy(Graph)
-    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()])
-    while nx.transitivity(G) > max(target_density, 0):
-        while centerlist and centerlist[0][0] == 0:
-            centerlist.pop(0)
-        if not centerlist:
-            break
-        candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
-        G.remove_edge(*sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in candidates])[0][1])
-        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist])
-    return G
-
-# sparsify via triad breaking
-def sparsify(Graph, decrease_density = 0.1):
-    G = copy.deepcopy(Graph)
-    target_density = nx.transitivity(G) - decrease_density
-    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()])
-    while nx.transitivity(G) > max(target_density, 0):
-        while centerlist and centerlist[0][0] == 0:
-            centerlist.pop(0)
-        if not centerlist:
-            break
-        candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
-        G.remove_edge(*sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in candidates])[0][1])
-        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist])
-    return G
-
-# sparsify via triad breaking
-def sparsify_coherent_test(G, decrease_density = 0.1):
-    if G.number_of_nodes() < 3:
-        return G
-    target_density = nx.transitivity(G) - decrease_density
-    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
-    while nx.transitivity(G) > max(target_density, 0):
-        while centerlist and centerlist[0][0] == 0:
-            centerlist.pop(0)
-        if not centerlist:
-            break
-        candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
-        G.remove_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
-        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
-    return G
-
-# sparsify via triad breaking
-def sparsify_sigmoid(G, decrease_density = 0.1):
-    if G.number_of_nodes() < 3:
-        return G
-    current_density = max(min(nx.transitivity(G), 0.9999999), 0.0000001)
-    print("current density: " + str(current_density))
-    target_sigmoid = np.log(current_density / (1 - current_density)) - decrease_density
-    target_density = 1 / (1 + np.exp(0 - target_sigmoid))
-    print("target density: " + str(target_density))
-
-    centerlist = sorted([(nx.clustering(G, i), i) for i in G.nodes()], reverse = True)
-    while nx.transitivity(G) > max(target_density, 0):
-        while centerlist and centerlist[0][0] == 0:
-            centerlist.pop(0)
-        if not centerlist:
-            break
-        candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
-        G.remove_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
-        centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
-    return G
-
-def add_edge_coherent(Graph, n = 1, descending = True):
-    G = copy.deepcopy(Graph)
-    edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in permutations(list(G.nodes()), r = 2) - G.edges()], reverse = descending)
-    for j in range(min(n, len(edgelist))):
-        G.add_edge(*edgelist[j][1])
-    return G
-
-def remove_edge_coherent(Graph, n = 1, descending = True):
-    G = copy.deepcopy(Graph)
-    edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in G.edges()], reverse = descending)
-    for j in range(min(n, len(edgelist))):
-        G.remove_edge(*edgelist[j][1])
-    return G
-
-def remove_edge_difference(Graph, n = 1):
-    G = copy.deepcopy(Graph)
-    edgelist = sorted([(max(G.degree[i], G.degree[j]) - min(G.degree[i], G.degree[j]), (i, j)) for (i, j) in G.edges()])
-    for j in range(min(n, len(edgelist))):
-        G.remove_edge(*edgelist[j][1])
+    i = 0
+    if alpha > 0:
+        edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in permutations(list(G.nodes()), r = 2) - G.edges()], reverse = True)
+        while nx.density(G) < min(target_density, 1):
+            G.add_edge(*edgelist[i][1])
+            i += 1
+    else:
+        edgelist = sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in G.edges()], reverse = True)
+        while nx.density(G) > max(target_density, 0):
+            G.remove_edge(*edgelist[i][1])
+            i += 1    
+        
     return G
 
 def add_node(Graph, namelist = None, n = 1, m = 1, descending = True):
