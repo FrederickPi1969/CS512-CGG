@@ -21,14 +21,12 @@ def reshapeMatrix(matrixList):
         single_matrix = True
     for graphIdx,matrix in enumerate(matrixList):
         number_of_nodes = 0
-        # print('before:',matrix.shape)
         for i in range(len(matrix)):
             if matrix[i][i].any() == 1:
                 number_of_nodes += 1
             else:
                 break
         matrices.append(matrix[:number_of_nodes,:number_of_nodes])
-        # print('after:',matrix.shape)
     if single_matrix:
         matrices = matrices[0]
     return np.array(matrices)
@@ -134,7 +132,7 @@ def graph_mapping(A, dataArgs, modelArgs):
         batch[i] = graph
     batch = np.array(batch)
     batch = torch.from_numpy(batch)
-    assert batch.shape == A.shape
+    # assert batch.shape == A.shape
     return batch
 
 def edit_graph(A, dataArgs, modelArgs, **args):
@@ -236,7 +234,7 @@ def edit_graph(A, dataArgs, modelArgs, **args):
     edited_list = np.array(edited_list).reshape(shape_list)
     edit_A = torch.from_numpy(edited_list).float()
     A = A.unsqueeze(-1)
-    assert A.shape == edit_A.shape
+    # assert A.shape == edit_A.shape
     return edit_A
 
 def normalize_adj_numpy(adj, symmetric=True):

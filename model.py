@@ -172,11 +172,11 @@ class Decoder_v2(nn.Module):
         x = self.dense1(z)  # (b, n, hidden=64)
         # x = self.dense1_nm(x)
         x = F.relu(x)
-        A_hat = x.bmm(x.transpose(-1,-2)) # (b,n,n)
-        max_score_per_node, _ = A_hat.max(dim=-1, keepdim=True)
-        min_score_per_node, _ = A_hat.min(dim=-1, keepdim=True)
-        A_hat = ((A_hat-min_score_per_node) / (max_score_per_node - min_score_per_node + 1e-13)).clamp(0.01, 0.99).unsqueeze(-1)
-        # print(A_hat)
+        A_hat_raw = x.bmm(x.transpose(-1,-2)) # (b,n,n)
+        # print("debug:",A_hat_raw.shape)
+        max_score_per_node, _ = A_hat_raw.max(dim=-1, keepdim=True)
+        min_score_per_node, _ = A_hat_raw.min(dim=-1, keepdim=True)
+        A_hat = ((A_hat_raw-min_score_per_node) / (max_score_per_node + 1e-13)).clamp(0.01, 0.99).unsqueeze(-1)
 
         # decoding node attributes:
         y = self.linear1(z)  # (b, n, 32)
@@ -186,7 +186,7 @@ class Decoder_v2(nn.Module):
         y = self.linear3(y)  # (b, n, attr)
         attr_hat = torch.sigmoid(y)
         # attr_hat = y.view(-1, self.node_num, self.attr_dim)
-        return A_hat, attr_hat
+        return A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node
 
 
 class VAE_v2(nn.Module):
@@ -200,9 +200,9 @@ class VAE_v2(nn.Module):
 
     def forward(self, attr, graph_conv_filters):
         z_mean, z_log_var, z = self.encoder(attr, graph_conv_filters)
-        A_hat, attr_hat = self.decoder(z)
+        A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node = self.decoder(z)
 
-        return z_mean, z_log_var, z, A_hat, attr_hat
+        return z_mean, z_log_var, z, A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node
 
 def binary_cross_entropy_loss(true, pred):
     # pred -= 1e-8

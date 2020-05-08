@@ -73,3 +73,12 @@ default.txt
 error_analysis.txt
 summary.txt
 tune_baseline.txt
+.ipynb_checkpoints/
+Playground.ipynb
+gen_a_debug.txt
+gen_a_debug_version_2.txt
+todo.txt
+
+# folders
+logs
+pickles

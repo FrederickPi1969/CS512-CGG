@@ -51,7 +51,7 @@ if __name__ == "__main__":
     beta_value = "20" #@param [0, 1, 2, 3, 5, 10, 20]
     trainArgs["loss_weights"] = [int(weight_graph_reconstruction_loss), int(weight_attribute_reconstruction_loss), int(beta_value)]
 
-    epochs = "20" #@param [10, 20, 50]
+    epochs = "35" #@param [10, 20, 50]
     trainArgs["epochs"] = int(epochs)
     batch_size = "512" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
     trainArgs["batch_size"] = int(batch_size)
@@ -127,10 +127,15 @@ if __name__ == "__main__":
     batched_A_hat_test = []
     batched_Attr_hat_test = []
     batched_gcn_filters_from_A_hat_test = []
+    batched_A_hat_raw_train = []
+    batched_A_hat_raw_test = []
+    batched_A_hat_max_train = []
+    batched_A_hat_max_test = []
+    batched_A_hat_min_train = []
+    batched_A_hat_min_test = []
     print("\n\n =================Start Training=====================")
-    for e in range(trainArgs["epochs"]):
+    for e in tqdm(range(trainArgs["epochs"])):
         print("Epoch {} / {}".format(e + 1, trainArgs["epochs"]))
-        # for i in tqdm(range(len(Attr_train)), leave=True):
         loss_cum = 0
         vae.train()
         for i in range(len(Attr_train)):
@@ -139,7 +144,7 @@ if __name__ == "__main__":
             A = A_train[i].float().to(device)
             graph_conv_filters = A_train_mod[i].float().to(device)
 
-            z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
+            z, z_mean, z_log_var, A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node = vae(attr, graph_conv_filters)
 
             if e + 1 == trainArgs["epochs"]:
                 batched_z.append(z.detach())
@@ -153,6 +158,10 @@ if __name__ == "__main__":
                 A_hat_discretize = discretizer.discretize('hard_threshold')
                 A_hat_discretize = torch.unsqueeze(torch.from_numpy(A_hat_discretize), -1)
                 batched_A_hat_discretized.append(A_hat_discretize)
+                batched_A_hat_raw_train.append(A_hat_raw.detach())
+                batched_A_hat_max_train.append(max_score_per_node.detach())
+                batched_A_hat_min_train.append(min_score_per_node.detach())
+
 
             loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
             loss_cum += loss.item()
@@ -171,7 +180,7 @@ if __name__ == "__main__":
                 A = A_validate[i].float().to(device)
                 graph_conv_filters = A_validate_mod[i].float().to(device)
 
-                z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
+                z, z_mean, z_log_var, A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node = vae(attr, graph_conv_filters)
                 loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
                 loss_cum += loss.item()
 
@@ -181,6 +190,9 @@ if __name__ == "__main__":
                     batched_A_hat_test.append(A_hat.detach())
                     temp = A_hat.detach().cpu()
                     batched_gcn_filters_from_A_hat_test.append(preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False))
+                    batched_A_hat_raw_test.append(A_hat_raw.detach())
+                    batched_A_hat_max_test.append(max_score_per_node.detach())
+                    batched_A_hat_min_test.append(min_score_per_node.detach())
 
                 # print(torch.mean(list(vae.parameters())[0].grad))
 
@@ -190,15 +202,13 @@ if __name__ == "__main__":
     # showLoss("VAE", train_losses, validation_losses)
     # drawGraph(A_train, batched_A_hat, showGraph=False)
     # drawGraph(A_train, batched_A_hat_discretized, showGraph=False, sample_size=6)
-    # debugDecoder(A_train, A_validate, batched_A_hat, batched_A_hat_test, discretize_method="vote_mapping", printMatrix=False)
+    # debugDecoderAAT((A_train, A_validate), (batched_A_hat, batched_A_hat_test), (batched_A_hat_raw_train, batched_A_hat_raw_test), (batched_A_hat_max_train, batched_A_hat_max_test), (batched_A_hat_min_train, batched_A_hat_min_test), discretize_method="hard_threshold", printMatrix=True)
     # sys.exit(0)
 
 
     ################ Training Discriminator
-    print('=========== debug ======')
     discriminator = Discriminator(modelArgs, device).to(device)
     optimizer_D = optim.Adam(discriminator.parameters(), lr = 0.001)
-    print('=========== debug ==== ')
 
     ## first train discriminatorm using old generated A_hat from last epoch and real A
     print("\n\n====================================================================================================")
@@ -294,7 +304,7 @@ if __name__ == "__main__":
     print("\n\n=================================================================================")
     print("start w training...")
 
-    transform = EdgeTransform()
+    transform = DensityTransform()
     w_epochs = 35  ################################# adjust epoch here!!!
     discriminator.eval()
     loss_train = []
@@ -302,9 +312,13 @@ if __name__ == "__main__":
     w_A_hat_train = []
     w_edit_A_hat_train = []
     w_gen_A_hat_train = []
+    gen_A_raw_train = []
+    gen_A_max_train = []
+    gen_A_min_train = []
     for e in range(w_epochs):
         loss_cum = 0
         for i in tqdm(range(len(batched_A_hat_discretized))):
+        # for i in range(len(batched_A_hat_discretized)):
             optimizer_w.zero_grad()
 
             fil = batched_gcn_filters_from_A_hat[i].float().to(device)
@@ -334,7 +348,7 @@ if __name__ == "__main__":
 
 
             # Then get G(z + aw) and D(G(z + aw))
-            gen_A, gen_attr = generator(z + alpha_gen * w)
+            gen_A, gen_attr, gen_A_raw, gen_A_max, gen_A_min = generator(z + alpha_gen * w)
             temp = gen_A.detach().cpu()
             gen_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
             feature_gen, preds = discriminator(gen_attr.float(), gen_fil.float())
@@ -350,13 +364,19 @@ if __name__ == "__main__":
                 w_A_train.append(A)
                 w_A_hat_train.append(A_hat)
                 w_edit_A_hat_train.append(edit_A)
-                w_gen_A_hat_train.append(gen_A)
+                w_gen_A_hat_train.append(gen_A.detach())
+                gen_A_raw_train.append(gen_A_raw.detach())
+                gen_A_max_train.append(gen_A_max.detach())
+                gen_A_min_train.append(gen_A_min.detach())
 
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, showGraph=False, sample_size=6)
-    showLoss("w", loss_train)
+    # debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
+    # debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
+    # drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
+    # drawGraphSaveFigure(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, clearImage=True)
+    # showLoss("w", loss_train)
 
 
 
