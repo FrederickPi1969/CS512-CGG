@@ -30,7 +30,7 @@ def drawGraph(A_train, batched_A_hat, edit_train=None, gen_A_train=None, w_alpha
 	if gen_A_train != None:
 		gen_A = gen_A_train[0].detach().cpu().numpy().squeeze(-1)
 		discretizer_gen_A = Discretizer(gen_A, gen_A)
-		gen_A = discretizer_gen_A.discretize('hard_threshold')
+		gen_A = discretizer_gen_A.discretize('gen_hard_threshold')
 		gen_A = reshapeMatrix(gen_A)
 
 	if len(a.shape) == 2:
@@ -161,7 +161,10 @@ def drawGraphSaveFigure(A_train, batched_A_hat, edit_train=None, gen_A_train=Non
 		has_edit_graph = True
 	if gen_A_train != None:
 		gen_A = gen_A_train[0].detach().cpu().numpy().squeeze(-1)
-
+		discretizer_gen_A = Discretizer(gen_A, gen_A)
+		gen_A = discretizer_gen_A.discretize('gen_hard_threshold')
+		gen_A = reshapeMatrix(gen_A)
+		
 	if len(a.shape) == 2:
 		a_sample = [a]
 		a_hat_sample = [a_hat]
