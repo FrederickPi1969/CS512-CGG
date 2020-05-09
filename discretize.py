@@ -49,6 +49,11 @@ class Discretizer(object):
                 return self.random_forest()
         elif method == "vote_mapping":
             return self.vote_mapping()
+        elif method == 'gen_hard_threshold':
+            threshold = 0.5
+            if args.get('threshold') != None:
+                threshold = args.get('threshold')
+            return self.gen_hard_threshold(threshold)
         else:
             raise ValueError('Error! Invalid discretize method! Please input one of the following methods:\n \
                               [hard_threshold, random_sampling, random_forest, vote_mapping]')
@@ -61,12 +66,22 @@ class Discretizer(object):
                 for k in range(j, len(self.A_hat[i])):
                     # val = (self.A_hat[i][j][k] + self.A_hat[i][k][j]) / 2
                     val = max(self.A_hat[i][j][k], self.A_hat[i][k][j])
-                    if val >= threshold:
+                    if val > threshold:
                         res[i][j][k] = 1
                         res[i][k][j] = 1
                     else:
                         res[i][j][k] = 0
                         res[i][k][j] = 0
+        assert res.shape == self.A.shape
+        return res
+
+    def gen_hard_threshold(self, threshold=0.5):
+        res = copy.deepcopy(self.A_hat)
+        batch_size = self.A_hat.shape[0]
+        for i,graph in enumerate(self.A_hat):
+            temp = graph - graph.min()
+            graph = ((temp - temp.min()) / temp.max() >= 0.50).astype(int)
+            res[i] = graph
         assert res.shape == self.A.shape
         return res
 
