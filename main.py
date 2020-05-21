@@ -307,7 +307,7 @@ if __name__ == "__main__":
 
     discriminator.eval()
     ## operation = "transitivity", "density", "node_count"
-    transform = GraphTransform(dataArgs["max_n_node"], operation = "node_count", sigmoid = True)
+    transform = GraphTransform(dataArgs["max_n_node"], operation = "forest_fire", sigmoid = True)
     w_epochs = 25  ################################# adjust epoch here!!!
 
     loss_train = []

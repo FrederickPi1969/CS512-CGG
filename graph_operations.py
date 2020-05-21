@@ -100,3 +100,33 @@ def modify_node_count(G, alpha = 0, max_nodes = 12):
 
     return G
 
+def forest_fire(G, alpha = 0, max_nodes = 12, burn_prob = 0.2):
+    if alpha < 0:
+        return None
+
+    for i in range(alpha):
+        if G.number_of_nodes() == max_nodes:
+            break
+        links = set()
+        visited = queue.Queue()
+        ambassador = random.choice(list(G.nodes()))
+        visited.put(ambassador)
+        while not visited.empty():
+            top = visited.get()
+            if top in links:
+                continue
+            links.add(top)
+            neighbors = set(G.neighbors(top)) - links
+            for i in neighbors:
+                dice = random.uniform(0, 1)
+                if dice < burn_prob:
+                    visited.put(i)
+
+        new_node = G.number_of_nodes()
+        G.add_node(new_node)
+        for link in links:
+            G.add_edge(new_node, link)
+    return G
+            
+        
+        

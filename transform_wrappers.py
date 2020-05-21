@@ -15,6 +15,8 @@ class GraphTransform:
     def get_train_alpha(self, graph_adj_tensors):
         if self.operation == "node_count":
             alpha_val = np.random.randint(-3, 4)
+        elif self.operation == "forest_fire":
+            alpha_val = np.random.randint(1, 3)
         elif self.sigmoid:
             alpha_val = np.random.uniform(-4, 4)
         else:
@@ -30,6 +32,8 @@ class GraphTransform:
             edited_graphs = [modify_transitivity(g, alpha) for g in graphs]
         elif self.operation == "density": 
             edited_graphs = [modify_density(g, alpha) for g in graphs]
+        elif self.operation == "forest_fire":
+            edited_graphs = [forest_fire(g, alpha, self.max_n_nodes) for g in graphs]
         else:
             edited_graphs = [modify_node_count(g, alpha, self.max_n_nodes) for g in graphs]
         return graphs_to_torch_tensor(edited_graphs, self.max_n_nodes)
