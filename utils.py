@@ -691,10 +691,10 @@ def masked_normalization(batched_A_hat, batched_param):
     """
     batch_size, max_node, _ = batched_A_hat.shape
     batched_mask = generate_batched_mask(batched_A_hat, batched_param)
-    temp_min = batched_A_hat.masked_fill(1e9) # first  size: (b, n, n)
-    temp_max = batched_A_hat.masked_fill(1e-9)
+    temp_min = batched_A_hat.masked_fill(1 - batched_mask, 1e9)  #first change all entries without nodes to 1e9 to get the global min size: (b, n, n)
+    temp_max = batched_A_hat.masked_fill(1 - batched_mask, 1e-9)  #change all entries without nodes to 1e-9 to extract the global max
     global_min = torch.min(temp_min.view(batch_size, -1), dim=-1)[0].view(-1,1,1) # the minimum in each (n,n) maxtrix in batch
     global_max = torch.max(temp_max.view(batch_size, -1), dim=-1)[0].view(-1,1,1)
 
-    normalized = ((batched_A_hat - global_min) / global_max) * batched_mask
-    return normalized
+    normalized = ((batched_A_hat - global_min) / global_max) * batched_mask ## need adjustment to get the scores distributed around 0.5
+    return normalized # this need discretization
