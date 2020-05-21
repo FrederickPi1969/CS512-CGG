@@ -681,8 +681,8 @@ def generate_batched_mask(batched_A_hat, batched_param):
     batch_size, max_node, _ = batched_A_hat.shape
     mask = torch.zeros(batch_size, max_node, max_node)
     for i in range(batch_size):
-        n = batched_param[i][0]
-        mask[i][:n,:n] = torch.ones(n,n)
+        n = int(batched_param[i][0])
+        mask[i][:n,:n] = torch.ones([n,n])
     return mask  # -> (b, n, n)
 
 def masked_normalization(batched_A_hat, batched_param):

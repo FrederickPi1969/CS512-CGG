@@ -319,9 +319,10 @@ To generate useful log information, set the 'printMatrix' flag to True and run t
 command:
 	python3 main.py > somePath/steering_gan_log.txt
 """
-def debugDiscretizer(gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=False):
+def debugDiscretizer(gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train,
+					 masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=False):
 	# check pickle
-	gen_A, edit_A, gen_A_max, gen_A_min, gen_A_normal, gen_A_discretize = [], [], [], [], [], None
+	gen_A, edit_A, gen_A_max, gen_A_min, gen_A_normal, gen_A_discretize, masked_normalized_A = [], [], [], [], [], None,[]
 	dump_list = [gen_A, edit_A, gen_A_max, gen_A_min, gen_A_normal, gen_A_discretize]
 	file_list = ['gen_A', 'edit_A', 'gen_A_max', 'gen_A_min', 'gen_A_normal', 'gen_A_discretize']
 	if not os.path.exists('pickles'):
@@ -341,12 +342,15 @@ def debugDiscretizer(gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen
 			gen_A_max.extend(gen_A_max_train[i])
 			gen_A_min.extend(gen_A_min_train[i])
 			gen_A_normal.extend(w_gen_A_hat_train[i])
+			masked_normalized_A.extend(masked_norm_A_hats[i])
+
 
 		gen_A = torch.stack(gen_A).squeeze().cpu().numpy()
 		edit_A = torch.stack(edit_A).squeeze().numpy()
 		gen_A_max = torch.stack(gen_A_max).cpu().squeeze().numpy()
 		gen_A_min = torch.stack(gen_A_min).cpu().squeeze().numpy()
 		gen_A_normal = torch.stack(gen_A_normal).cpu().squeeze().numpy()
+		masked_normalized_A = torch.stack(masked_normalized_A).squeeze().numpy()
 
 		discretizer = Discretizer(gen_A_normal, gen_A_normal)
 		gen_A_discretize = discretizer.discretize(discretize_method)
@@ -364,7 +368,9 @@ def debugDiscretizer(gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen
 		edit_a = edit_A[i]
 		max_A = gen_A_max[i]
 		min_A = gen_A_min[i]
+		masked_norm_A = masked_normalized_A[i]
 		a_normal = gen_A_normal[i]
+
 		if printMatrix:	
 			print('=====')
 			print('edit_a:')
@@ -375,6 +381,8 @@ def debugDiscretizer(gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen
 			print(max_A)
 			print('min_A:')
 			print(min_A)
+			print("masked_normalized_A:")
+			print(masked_norm_A)
 			print('gen_A_normalized:')
 			print(a_normal)
 			print('gen_A_discretize:')

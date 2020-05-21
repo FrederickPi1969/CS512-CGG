@@ -32,7 +32,7 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "15000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "1500" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -83,6 +83,7 @@ if __name__ == "__main__":
     Attr_test = generate_batch(torch.from_numpy(Attr[int((1-trainArgs["data_split"])*Attr.shape[0]):]), trainArgs["batch_size"])
     Param_test = generate_batch(torch.from_numpy(Param[int((1-trainArgs["data_split"])*Param.shape[0]):]), trainArgs["batch_size"])
     Topol_test = generate_batch(torch.from_numpy(Topol[int((1-trainArgs["data_split"])*Topol.shape[0]):]), trainArgs["batch_size"])
+
 
     # print(A_train.shape)
     # print(len(Attr_train), Attr_train[0].shape)
@@ -285,7 +286,7 @@ if __name__ == "__main__":
     discriminator.eval()
     ## operation = "transitivity", "density", "node_count"
     transform = GraphTransform(dataArgs["max_n_node"], operation = "forest_fire", sigmoid = True)
-    w_epochs = 35  ### adjust epoch here!!!
+    w_epochs = 1  ### adjust epoch here!!!
 
     loss_train = []
     w_A_train = []
@@ -295,6 +296,7 @@ if __name__ == "__main__":
     gen_A_raw_train = []
     gen_A_max_train = []
     gen_A_min_train = []
+    masked_norm_A_hats = []
 
     recent_train_losses = []
 
@@ -350,6 +352,8 @@ if __name__ == "__main__":
                 w_edit_A_hat_train.append(edit_A)
                 w_gen_A_hat_train.append(gen_A.detach())
                 gen_A_raw_train.append(gen_A_raw.detach())
+                masked_norm_A = masked_normalization(gen_A_raw.detach(), Param_train[i])
+                masked_norm_A_hats.append(masked_norm_A)
                 gen_A_max_train.append(gen_A_max.detach())
                 gen_A_min_train.append(gen_A_min.detach())
 
@@ -358,7 +362,7 @@ if __name__ == "__main__":
 
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
+    debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
     #debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
     # drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
     # drawGraphSaveFigure(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, clearImage=True)
