@@ -675,3 +675,26 @@ def graphs_to_torch_tensor(graphs, original_size):
 #     if save:
 #         pickle.dump((A, Attr, Param, Topol), open("dblp_subgraphs", 'wb'))
 #     return A, Attr, Param, Topol
+
+
+def generate_batched_mask(batched_A_hat, batched_param):
+    batch_size, max_node, _ = batched_A_hat.shape
+    mask = torch.zeros(batch_size, max_node, max_node)
+    for i in range(batch_size):
+        n = batched_param[i][0]
+        mask[i][:n,:n] = torch.ones(n,n)
+    return mask  # -> (b, n, n)
+
+def masked_normalization(batched_A_hat, batched_param):
+    """
+    Input a RAW score matrix A_hat -> (b, n, n), batched_param (n, p, param) tuple.
+    """
+    batch_size, max_node, _ = batched_A_hat.shape
+    batched_mask = generate_batched_mask(batched_A_hat, batched_param)
+    temp_min = batched_A_hat.masked_fill(1e9) # first  size: (b, n, n)
+    temp_max = batched_A_hat.masked_fill(1e-9)
+    global_min = torch.min(temp_min.view(batch_size, -1), dim=-1)[0].view(-1,1,1) # the minimum in each (n,n) maxtrix in batch
+    global_max = torch.max(temp_max.view(batch_size, -1), dim=-1)[0].view(-1,1,1)
+
+    normalized = ((batched_A_hat - global_min) / global_max) * batched_mask
+    return normalized
