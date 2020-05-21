@@ -32,7 +32,7 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "1500" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "2048" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -129,6 +129,11 @@ if __name__ == "__main__":
     batched_A_hat_min_test = []
     print("\n\n =================Extracting useful information=====================")
     vae.eval()
+
+    def index_of(my_list, target):
+        try: return my_list.index(target)
+        except: return dataArgs["max_n_node"]
+
     for e in range(1):
         loss_cum = 0
         for i in range(len(Attr_train)):
@@ -149,11 +154,23 @@ if __name__ == "__main__":
                 discretizer = Discretizer(A_discretize, A_hat_discretize)
                 A_hat_discretize = discretizer.discretize('hard_threshold')
                 A_hat_discretize = torch.unsqueeze(torch.from_numpy(A_hat_discretize), -1)
+
                 batched_A_hat_discretized.append(A_hat_discretize)
                 batched_A_hat_raw_train.append(A_hat_raw.detach())
                 batched_A_hat_max_train.append(max_score_per_node.detach())
                 batched_A_hat_min_train.append(min_score_per_node.detach())
 
+                # count = 0
+                for j in range(len(batched_A_hat_discretized[i])):
+                    temp = torch.diag(batched_A_hat_discretized[i][j].detach().reshape(dataArgs["max_n_node"], -1))
+                    pred_node_num = index_of(list(temp), 0)
+                    Param_train[i][j][-1] = pred_node_num  # predicting node num have ~85% acc
+                    # true_node_num = int(Param_train[i][j][0])
+                    # print(pred_node_num)
+                    # print(true_node_num)
+                #
+                #     count += pred_node_num == true_node_num
+                # print(f"node prediction accuracy : {count / len(batched_A_hat_discretized[i])}")
 
             loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
             loss_cum += loss.item()
@@ -286,7 +303,7 @@ if __name__ == "__main__":
     discriminator.eval()
     ## operation = "transitivity", "density", "node_count"
     transform = GraphTransform(dataArgs["max_n_node"], operation = "forest_fire", sigmoid = True)
-    w_epochs = 1  ### adjust epoch here!!!
+    w_epochs = 10  ### adjust epoch here!!!
 
     loss_train = []
     w_A_train = []

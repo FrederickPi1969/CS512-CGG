@@ -352,7 +352,8 @@ def debugDiscretizer(gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen
 		gen_A_normal = torch.stack(gen_A_normal).cpu().squeeze().numpy()
 		masked_normalized_A = torch.stack(masked_normalized_A).squeeze().numpy()
 
-		discretizer = Discretizer(gen_A_normal, gen_A_normal)
+		# discretizer = Discretizer(gen_A_normal, gen_A_normal)
+		discretizer = Discretizer(masked_normalized_A, masked_normalized_A) ## Changed this to masked_normalized_A_hat
 		gen_A_discretize = discretizer.discretize(discretize_method)
 		dump_list[-1] = gen_A_discretize
 
@@ -376,15 +377,15 @@ def debugDiscretizer(gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen
 			print('edit_a:')
 			print(edit_a)
 			print('gen_A_AAT_raw:')
-			print(a_raw)
-			print('max_A:')
-			print(max_A)
-			print('min_A:')
-			print(min_A)
+			# print(a_raw)
+			# print('max_A:')
+			# print(max_A)
+			# print('min_A:')
+			# print(min_A)
 			print("masked_normalized_A:")
 			print(masked_norm_A)
-			print('gen_A_normalized:')
-			print(a_normal)
+			# print('gen_A_normalized:')
+			# print(a_normal)
 			print('gen_A_discretize:')
 			print(a)
 			print('=====')

@@ -681,7 +681,8 @@ def generate_batched_mask(batched_A_hat, batched_param):
     batch_size, max_node, _ = batched_A_hat.shape
     mask = torch.zeros(batch_size, max_node, max_node)
     for i in range(batch_size):
-        n = int(batched_param[i][0])
+        print(batched_param[i][-1])
+        n = int(batched_param[i][-1])  # dim -1 is the predicted node num
         mask[i][:n,:n] = torch.ones([n,n])
     return mask  # -> (b, n, n)
 
