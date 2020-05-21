@@ -176,7 +176,7 @@ if __name__ == "__main__":
                 z, z_mean, z_log_var, A_hat, attr_hat = vae(attr, graph_conv_filters)
                 loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
                 loss_cum += loss.item()
-                
+
                 n,p,n_hat,p_hat,loss = computeNP(A.cpu(), A_hat.detach())
                 np_loss += loss
 
@@ -233,10 +233,10 @@ if __name__ == "__main__":
         # print('A_hat_discretized:')
         # print(a_hat)
         # print('=====')
-    accuracy /= len(A)
+    # accuracy /= len(A)
     print("accuracy:", 1-accuracy)
 
-    sys.exit(0)
+    # sys.exit(0)
     ################ Training Discriminator
     discriminator = Discriminator(modelArgs, device).to(device)
     optimizer_D = optim.Adam(discriminator.parameters(), lr = 0.001)
