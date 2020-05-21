@@ -11,6 +11,12 @@ class GraphTransform:
         self.max_n_nodes = max_n_nodes
         self.operation = operation
         self.sigmoid = sigmoid
+
+    def calibrate_node_num(self, graph_tensors, edited_graphs):
+        for i,graph in enumerate(edited_graphs):
+            for j in range(graph.number_of_nodes()):
+                graph_tensors[i][j,j] = 1
+        return graph_tensors
     
     def get_train_alpha(self, graph_adj_tensors):
         if self.operation == "node_count":
@@ -27,7 +33,7 @@ class GraphTransform:
     def get_target_graph(self, alpha, graph_adj_tensors, graph_node_counts):
         graphs = torch_tensor_to_graphs(graph_adj_tensors, graph_node_counts)
         edited_graphs = None
-        print(alpha)
+        # print(alpha)
         if self.operation == "transitivity":
             edited_graphs = [modify_transitivity(g, alpha) for g in graphs]
         elif self.operation == "density": 
@@ -36,7 +42,8 @@ class GraphTransform:
             edited_graphs = [forest_fire(g, alpha, self.max_n_nodes) for g in graphs]
         else:
             edited_graphs = [modify_node_count(g, alpha, self.max_n_nodes) for g in graphs]
-        return graphs_to_torch_tensor(edited_graphs, self.max_n_nodes)
+        return self.calibrate_node_num(graphs_to_torch_tensor(edited_graphs, self.max_n_nodes), edited_graphs)
+
 
 class KroneckerTransform:
     def __init__(self, max_graph_nodes = 12):

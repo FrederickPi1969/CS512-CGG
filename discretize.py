@@ -2,7 +2,37 @@ import numpy as np
 import pickle, copy, random
 from sklearn.ensemble import RandomForestClassifier
 
+"""
+A class to disscretize a batched matrix numpy array with the shape
+(batch_size, max_n_node, max_n_node)
+
+Usage:
+# convert batched tensor to numpy array
+ground_truth = ground_truth.cpu().numpy().squeeze(-1)
+predicted = predicted.cpu().numpy().squeeze(-1)
+
+# create discretizer object
+discretizer = Discretizer(ground_truth, predicted)
+
+# call the discretize method to discretized the predicted array
+predicted = discretizer.discretize('hard_threshold')
+
+# restore the numpy array back to tensor original shape
+ground_truth = torch.unsqueeze(torch.from_numpy(A), -1)
+predicted = torch.unsqueeze(torch.from_numpy(A_hat), -1)
+"""
 class Discretizer(object):
+    """
+    Discretizer constructor
+
+    Param:
+    A:  the ground truth matrix numpy array with the shape (batch_size, max_n_node, max_n_node)
+    A_hat: the predicted matrix numpy array with the shape (batch_size, max_n_node, max_n_node)
+    pretrain: a boolean value to determine whether we want to use the pretrained random 
+              forest classifer as the discretizer
+    filename: if pretrain = True, filename stores the path to the pretrained random forest
+              model picke file
+    """
     def __init__(self, A, A_hat, pretrain=False, filename=None): ## A_hat is continuous adi matrix
         assert A_hat.shape == A.shape
         assert len(A.shape) == 3 and A.shape[1] == A.shape[2]
@@ -11,6 +41,19 @@ class Discretizer(object):
         self.pretrain = pretrain
         self.filename = filename
 
+
+    """
+    Discretize interface
+
+    Param:
+    method: the method we want to use to discretize the array
+            it includes:
+                1. hard_threshold
+                2. random_sampling (non-deterministic)
+                3. random_forest
+                4. vote_sampling
+    args: additional arguments for specific discetize method
+    """
     def discretize(self, method, **args):
         if method == "hard_threshold":
             threshold = 0.5
@@ -58,6 +101,12 @@ class Discretizer(object):
             raise ValueError('Error! Invalid discretize method! Please input one of the following methods:\n \
                               [hard_threshold, random_sampling, random_forest, vote_mapping]')
 
+
+    """
+    discretize the array by a hard threshold with default value equal to 0.5
+    to enforce the discretized matrix to be symmetric, for each entry matrix[i][j],
+    I set matrix[i][j] = max(matrix[j][i], matrix[i][j]) >= threshold
+    """
     def hard_threshold(self, threshold=0.5):
         res = copy.deepcopy(self.A_hat)
         batch_size = self.A_hat.shape[0]
@@ -75,6 +124,13 @@ class Discretizer(object):
         assert res.shape == self.A.shape
         return res
 
+    """
+    discretize method used by discretizing matrix outputed by Decoder(z+alpha*w)
+    discretize the array by a hard threshold with default value equal to 0.5.
+    First, normalize each matrix by (A-A.min())/A.max()
+    to enforce the discretized matrix to be symmetric, for each entry matrix[i][j],
+    I set matrix[i][j] = max(matrix[j][i], matrix[i][j]) >= threshold
+    """
     def gen_hard_threshold(self, threshold=0.5):
         res = copy.deepcopy(self.A_hat)
         batch_size = self.A_hat.shape[0]
@@ -85,6 +141,10 @@ class Discretizer(object):
         assert res.shape == self.A.shape
         return res
 
+    """
+    for each entry matrix[i][j], if matrix[i][j] = p, then matrix[i][j] will have a probaility
+    of p to be equal to 1
+    """
     def random_sampling(self):
         res = copy.deepcopy(self.A_hat)
         batch_size = self.A_hat.shape[0]
@@ -93,6 +153,14 @@ class Discretizer(object):
         assert res.shape == self.A.shape
         return res
 
+    """
+    Train a random forest classifier for this discretizing task.
+
+    Param:
+    'n_estimators': number of estinmator of the random forest classifier
+    'rf_A': the training label for the random forest classifier (can be batched_A_hat)
+    'rf_A_hat': the training data for the random forest classifier (can be A_train)
+    """
     def random_forest(self, n_estimators=1000, rf_A=None, rf_A_hat=None):
         res = []
         if self.pretrain == True:
@@ -115,6 +183,27 @@ class Discretizer(object):
         assert res.shape == self.A.shape
         return res
 
+    """
+    A deterministic discretizing method
+
+    for each entry matrix[i][j], we obtain 4 thresholds:
+        1.  maxval: max value at row i
+            minval: min value at row i
+            threshold1 = avg(maxval, minval) 
+        2.  colmaxval: max value at col j
+            colminval: min value at col j
+            threshold2 = avg(colmaxval, colminval) 
+        3.  inverse_maxval: max value at row j
+            inverse_minval: min value at row j
+            threshold3 = avg(inverse_maxval, inverse_minval) 
+        4.  inverse_colmaxval: max value at col i
+            inverse_colminval: min value at col i
+            threshold4 = avg(inverse_colmaxval, inverse_colminval)
+    for each threshold, we can get 1 result whether matrix[i][j] should be 1
+
+    for the 4 results we get for the current entry, we take a vote. If # of 1 > # of 0
+    matrix[i][j] = matrix[j][i] = 1 and vise versa
+    """
     def vote_mapping(self):
         res = np.zeros(self.A_hat.shape)
         batch_size = self.A_hat.shape[0]
