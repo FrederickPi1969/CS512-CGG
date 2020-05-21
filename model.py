@@ -19,17 +19,15 @@ class Discriminator(nn.Module):
         self.drop1 = nn.Dropout(0.1)
         self.gcn2 = GCN(100, self.num_filters, self.device)
 
-        # self.anchorLinear = nn.Linear(100, 12, bias=True)
+        # self.linear1 = nn.Linear(100, 32, bias=True)
+        # self.linear2 = nn.Linear(32, 16, bias=True)
+        # self.linear3 = nn.Linear(16, 1, bias=True)
 
-        self.linear1 = nn.Linear(100, 32, bias=True)
-        self.linear2 = nn.Linear(32, 16, bias=True)
-        self.linear3 = nn.Linear(16, 1, bias=True)
-
-
-        # self.linear1 = nn.Linear(144, 64, bias=True)
-        # self.linear2 = nn.Linear(64, 32, bias=True)
-        # self.linear3 = nn.Linear(32, 16, bias=True)
-        # self.linear4 = nn.Linear(16, 1, bias=True)
+        self.anchorLinear = nn.Linear(100, 12, bias=True)
+        self.linear1 = nn.Linear(144, 64, bias=True)
+        self.linear2 = nn.Linear(64, 32, bias=True)
+        self.linear3 = nn.Linear(32, 16, bias=True)
+        self.linear4 = nn.Linear(16, 1, bias=True)
 
     def forward(self, x, graph_conv_filters):
         o = self.gcn1(x, graph_conv_filters)
@@ -38,29 +36,29 @@ class Discriminator(nn.Module):
 
         #### if use graph-level feature
         # o = torch.mean(o, dim = 1) # mean
-        o,_ = torch.max(o, dim = 1) # max pooling
-        o = self.linear1(o)
-        o = F.relu(o)
-        o = self.linear2(o)
-        o =F.relu(o)
-        anchor = o
-        o = self.drop1(o)
-        o = self.linear3(o)
-        o = torch.sigmoid(o)
+        # o,_ = torch.max(o, dim = 1) # max pooling
+        # o = self.linear1(o)
+        # o = F.relu(o)
+        # o = self.linear2(o)
+        # o = F.relu(o)
+        # anchor = o
+        # o = self.drop1(o)
+        # o = self.linear3(o)
+        # o = torch.sigmoid(o)
 
 
         #### if use node-level feature
-        # o = self.anchorLinear(o)   # (b, n, 12)
-        # anchor = o
-        # o = torch.flatten(o, start_dim=1)
-        # o = self.linear1(o)
-        # o = F.leaky_relu(o)
-        # o = self.linear2(o)
-        # o = F.leaky_relu(o)
-        # o = self.linear3(o)
-        # o = F.leaky_relu(o)
-        # o = self.linear4(o)
-        # o = torch.sigmoid(o)
+        o = self.anchorLinear(o)   # (b, n, 12)
+        anchor = o
+        o = torch.flatten(o, start_dim=1)
+        o = self.linear1(o)
+        o = F.leaky_relu(o)
+        o = self.linear2(o)
+        o = F.leaky_relu(o)
+        o = self.linear3(o)
+        o = F.leaky_relu(o)
+        o = self.linear4(o)
+        o = torch.sigmoid(o)
 
         return anchor, o
 
@@ -219,9 +217,6 @@ class VAE_v2(nn.Module):
         return z_mean, z_log_var, z, A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node
 
 def binary_cross_entropy_loss(true, pred):
-    # pred -= 1e-8
-    # assert all(pred > 0.0)
-    # assert all(pred < 1.0)
     loss = -1 * torch.mean(true * torch.log(pred) + (1 - true) * torch.log(1 - pred))
     if loss != loss:
         print(torch.max(pred), torch.min(pred))
