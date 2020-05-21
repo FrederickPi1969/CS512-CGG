@@ -162,20 +162,21 @@ if __name__ == "__main__":
 
                 # count = 0
                 for j in range(len(batched_A_hat_discretized[i])):
-                    temp = torch.diag(batched_A_hat_discretized[i][j].detach().reshape(dataArgs["max_n_node"], -1))
-                    pred_node_num = index_of(list(temp), 0)
-                    Param_train[i][j][-1] = pred_node_num  # predicting node num have ~85% acc
+
+                    temp = list(torch.diag(batched_A_hat_discretized[i][j].detach().reshape(dataArgs["max_n_node"], -1)))[::-1]
+                    pred_node_num = dataArgs["max_n_node"] - index_of(list(temp), 1)
+                    Param_train[i][j][-1] = pred_node_num  # predicti node num have ~96% acc
                     # true_node_num = int(Param_train[i][j][0])
                     # print(pred_node_num)
                     # print(true_node_num)
-                #
+
                 #     count += pred_node_num == true_node_num
                 # print(f"node prediction accuracy : {count / len(batched_A_hat_discretized[i])}")
 
-            loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
-            loss_cum += loss.item()
-
-        print("Model loss {} ".format(loss_cum / len(Attr_train)))
+        #     loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
+        #     loss_cum += loss.item()
+        #
+        # print("Model loss {} ".format(loss_cum / len(Attr_train)))
 
 
         loss_cum = 0
@@ -198,7 +199,7 @@ if __name__ == "__main__":
                 batched_A_hat_max_test.append(max_score_per_node.detach())
                 batched_A_hat_min_test.append(min_score_per_node.detach())
 
-        print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(Attr_validate)))
+        # print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(Attr_validate)))
 
 
 
