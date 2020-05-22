@@ -294,6 +294,35 @@ def drawGraphSaveFigure(A_train, batched_A_hat, edit_train=None, gen_A_train=Non
 
 
 
+"""
+This function is used to compute the element-wise accuracy, precision, recall, 
+and F-1 score between two matrix
+
+matrix has the shape: (max_n_node, max_n_node)
+"""
+def computeScore(a, a_hat):
+	recall = 0
+	accuracy = 0
+	precision = 0
+	true_positive = 0
+	false_negative = 0
+
+	accuracy += 1 - (np.sum(abs(a - a_hat)) / (a.shape[0] * a.shape[0]))
+
+	for r in range(a.shape[0]):
+		for c in range(a.shape[0]):
+			if a_hat[r][c] == a[r][c] and a_hat[r][c] == 1:
+				true_positive += 1 
+			if a_hat[r][c] == 0 and a[r][c] == 1:
+				false_negative += 1
+
+	if np.sum(a_hat) != 0:
+		precision += true_positive / np.sum(a_hat)
+	if true_positive + false_negative > 0:
+		recall += true_positive / (true_positive + false_negative)
+	return recall,accuracy,precision
+
+
 
 """
 A function used to debug the Steering GAN portion of the model.
@@ -311,6 +340,7 @@ discretize_method: a string to determine the discretize method for the normalize
 					default is hard threshold
 printMatrix: a boolean value determines whether we print above debug information to the stdout 
 abortPickle: a boolean value determines whether we clear all the pickles that store the previous array
+computePerformance: a boolean value determines whether we print the accuracy/precision/recall/f-1score of the generated matrix
 
 To improve scalability, this function will store all the above array into corrospounding pickle
 files under the path "currPath/pickles/*.pickle".
@@ -320,7 +350,7 @@ command:
 	python3 main.py > somePath/steering_gan_log.txt
 """
 def debugDiscretizer(original_A, gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train,
-					 masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=False):
+					 masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=False, computePerformance=True):
 	# check pickle
 	gen_A, edit_A, gen_A_max, gen_A_min, gen_A_normal,\
 	gen_A_discretize, masked_normalized_A, original_As = [], [], [], [], [], None,[],[]
@@ -368,7 +398,7 @@ def debugDiscretizer(original_A, gen_edit_A_hat_train, gen_A_raw_train, gen_A_ma
 			pickle.dump(dump_list[i], f)
 			f.close()
 
-	
+	recall,accuracy,precision = 0,0,0
 	for i,a in enumerate(gen_A_discretize):
 		a_raw = gen_A[i]
 		edit_a = edit_A[i]
@@ -377,6 +407,11 @@ def debugDiscretizer(original_A, gen_edit_A_hat_train, gen_A_raw_train, gen_A_ma
 		masked_norm_A = masked_normalized_A[i]
 		a_normal = gen_A_normal[i]
 		ori_a= original_As[i]
+		if computePerformance:
+			recall_result,accuracy_result,precision_result = computeScore(edit_a, a)
+			recall += recall_result
+			accuracy += accuracy_result
+			precision += precision_result
 
 		if printMatrix:
 			print("=============================")
@@ -397,36 +432,15 @@ def debugDiscretizer(original_A, gen_edit_A_hat_train, gen_A_raw_train, gen_A_ma
 			print('gen_A_discretize:')
 			print(a)
 			print("=============================")
-
-
-
-"""
-This function is used to compute the element-wise accuracy, precision, recall, 
-and F-1 score between two matrix
-
-matrix has the shape: (max_n_node, max_n_node)
-"""
-def computeScore(a, a_hat):
-	recall = 0
-	accuracy = 0
-	precision = 0
-	true_positive = 0
-	false_negative = 0
-
-	accuracy += 1 - (np.sum(abs(a - a_hat)) / (a.shape[0] * a.shape[0]))
-
-	for r in range(a.shape[0]):
-		for c in range(a.shape[0]):
-			if a_hat[r][c] == a[r][c] and a_hat[r][c] == 1:
-				true_positive += 1 
-			if a_hat[r][c] == 0 and a[r][c] == 1:
-				false_negative += 1
-
-	if np.sum(a_hat) != 0:
-		precision += true_positive / np.sum(a_hat)
-	if true_positive + false_negative > 0:
-		recall += true_positive / (true_positive + false_negative)
-	return recall,accuracy,precision
+	if computePerformance:
+		accuracy /= len(gen_A_discretize)
+		precision /= len(gen_A_discretize)
+		recall /= len(gen_A_discretize)
+		f1_score = (2*precision*recall) / (precision+recall)
+		print("accuracy:", accuracy)
+		print("precision:", precision)
+		print("recall:", recall)
+		print("f1 score:", f1_score)
 
 
 
