@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
                     temp = list(torch.diag(batched_A_hat_discretized[i][j].detach().reshape(dataArgs["max_n_node"], -1)))[::-1]
                     pred_node_num = dataArgs["max_n_node"] - index_of(list(temp), 1)
-                    Param_train[i][j][-1] = pred_node_num  # predicti node num have ~96% acc
+                    Param_train[i][j][-1] = pred_node_num  # predicted node num have ~96% acc
                     # true_node_num = int(Param_train[i][j][0])
                     # print(pred_node_num)
                     # print(true_node_num)
@@ -303,7 +303,7 @@ if __name__ == "__main__":
 
     discriminator.eval()
     ## operation = "transitivity", "density", "node_count"
-    transform = GraphTransform(dataArgs["max_n_node"], operation = "forest_fire", sigmoid = True)
+    transform = GraphTransform(dataArgs["max_n_node"], operation = "density", sigmoid = True)
     w_epochs = 10  ### adjust epoch here!!!
 
     loss_train = []
