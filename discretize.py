@@ -1,6 +1,8 @@
 import numpy as np
 import pickle, copy, random
+import math
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.cluster import KMeans
 
 """
 A class to disscretize a batched matrix numpy array with the shape
@@ -62,6 +64,8 @@ class Discretizer(object):
             return self.hard_threshold(threshold)
         elif method == "random_sampling":
             return self.random_sampling()
+        elif method == "kmeans":
+            return self.kmeans_test()
         elif method == "random_forest":
             if not self.pretrain:
                 assert args.get('rf_A') != None and args.get('rf_A_hat') != None
@@ -245,6 +249,82 @@ class Discretizer(object):
             valid_subgraph = copy.deepcopy(res[batch_num][:real_num_of_node, :real_num_of_node])
             res[batch_num] = np.zeros(self.A_hat.shape[1:])
             res[batch_num][:real_num_of_node, :real_num_of_node] = valid_subgraph
+        assert res.shape == self.A.shape
+        return res
+
+    def kmeans_test(self):
+        res = np.zeros(self.A_hat.shape)
+        batch_size = self.A_hat.shape[0]
+        node_num = self.A_hat.shape[1]
+        
+        for i in range(batch_size):
+            #print(self.A_hat[i])
+            for j in range(node_num):
+                
+                row_size = len(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)])
+                if row_size <= 1:
+                    continue
+                kmeans = KMeans(n_clusters = 2).fit(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)].reshape(-1, 1))
+                ## 1 cluster
+                if kmeans.cluster_centers_.shape[0] == 1:
+                    if kmeans.cluster_centers_[0] > 0.25:
+                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.ones(row_size)
+                    else:
+                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.zeros(row_size)
+                elif abs(kmeans.cluster_centers_[0] - kmeans.cluster_centers_[1]) < 0.15:
+                    if (kmeans.cluster_centers_[0] + kmeans.cluster_centers_[1]) / 2 > 0.25:
+                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.ones(row_size)
+                    else:
+                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.zeros(row_size)
+                else:
+                    if kmeans.cluster_centers_[0] > kmeans.cluster_centers_[1]:
+                        #print(np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)].reshape(-1, 1)))
+                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)].reshape(-1, 1))
+                    else:
+                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)].reshape(-1, 1))
+            #print(res[i])
+        assert res.shape == self.A.shape
+        return res
+
+    def kmeans(self):
+        res = np.zeros(self.A_hat.shape)
+        batch_size = self.A_hat.shape[0]
+        node_num = self.A_hat.shape[1]
+    
+        for i in range(batch_size):
+            graph_size = node_num
+            #print(self.A_hat[i])
+            try:
+                graph_size = list(self.A_hat[i][0]).index(np.float32(0.01))
+            except:
+                pass
+
+            if graph_size == 1:
+                res[i][0][0] = 1
+                continue
+            elif graph_size == 0:
+                continue
+
+        #print(graph_size)
+            for j in range(graph_size):
+                kmeans = KMeans(n_clusters = 2).fit(self.A_hat[i][j][0:graph_size].reshape(-1, 1))
+            ## 1 cluster
+                if kmeans.cluster_centers_.shape[0] == 1:
+                    if kmeans.cluster_centers_[0] > 0.5:
+                        res[i][j][0:graph_size] = np.ones(graph_size)
+                    else:
+                        res[i][j][0:graph_size] = np.zeros(graph_size)
+                elif abs(kmeans.cluster_centers_[0] - kmeans.cluster_centers_[1]) < 0.15:
+                    if (kmeans.cluster_centers_[0] + kmeans.cluster_centers_[1]) / 2 > 0.5:
+                        res[i][j][0:graph_size] = np.ones(graph_size)
+                    else:
+                        res[i][j][0:graph_size] = np.zeros(graph_size)
+                else:
+                    if kmeans.cluster_centers_[0] > kmeans.cluster_centers_[1]:
+                        res[i][j][0:graph_size] = np.ones(graph_size) - kmeans.predict(self.A_hat[i][j][0:graph_size].reshape(-1, 1))
+                    else:
+                        kmeans.predict(self.A_hat[i][j][0:graph_size].reshape(-1, 1))
+        #print(res[i])
         assert res.shape == self.A.shape
         return res
        

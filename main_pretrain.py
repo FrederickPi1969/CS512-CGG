@@ -32,7 +32,7 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "20000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "200" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -155,6 +155,9 @@ if __name__ == "__main__":
                 A_hat_discretize = A_hat.detach().cpu().squeeze().numpy()
                 discretizer = Discretizer(A_discretize, A_hat_discretize)
                 A_hat_discretize = discretizer.discretize('hard_threshold')
+
+                compute_f1(A_discretize, A_hat_discretize)
+
                 A_hat_discretize = torch.unsqueeze(torch.from_numpy(A_hat_discretize), -1)
 
                 batched_A_hat_discretized.append(A_hat_discretize)
@@ -162,16 +165,16 @@ if __name__ == "__main__":
                 batched_A_hat_max_train.append(max_score_per_node.detach())
                 batched_A_hat_min_train.append(min_score_per_node.detach())
 
-                # count = 0
+                #count = 0
+                print(type(batched_A_hat_discretized[i]))
                 for j in range(len(batched_A_hat_discretized[i])):
-                    temp = list(torch.diag(batched_A_hat_discretized[i][j].detach().reshape(dataArgs["max_n_node"], -1)))[::-1]
-                    pred_node_num = dataArgs["max_n_node"] - index_of(list(temp), 1)
+                    pred_node_num = count_nodes(batched_A_hat_discretized[i][j].detach().reshape(dataArgs["max_n_node"], -1), dataArgs["max_n_node"])
                     Param_train[i][j][-1] = pred_node_num  # predicted node num have ~96% acc
-                    # true_node_num = int(Param_train[i][j][0])
-                    # print(pred_node_num)
-                    # print(true_node_num)
+                    #true_node_num = int(Param_train[i][j][0])
+                    #print(pred_node_num)
+                    #print(true_node_num)
 
-                #     count += pred_node_num == true_node_num
+                    # count += pred_node_num == true_node_num
                 # print(f"node prediction accuracy : {count / len(batched_A_hat_discretized[i])}")
 
         #     loss = loss_func((A, attr), (A_hat, attr_hat), z_mean, z_log_var, trainArgs, modelArgs)
@@ -398,6 +401,7 @@ if __name__ == "__main__":
         loss_train.append(loss_cum / len(batched_A_hat))
 
     debugDiscretizer(w_A_hat_train, w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
+    
     #debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
     # drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
     # drawGraphSaveFigure(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, clearImage=True)

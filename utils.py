@@ -4,6 +4,7 @@ import scipy.sparse as sp
 import torch.nn as nn
 import numpy as np
 from graph_operations import *
+from visualization import *
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from networkx.generators import random_graphs
@@ -38,13 +39,20 @@ def padMatrix(matrixInput, max_n_node):
     n = len(matrixInput)
     return np.pad(matrixInput, [(0, max_n_node-n), (0, max_n_node-n)], mode='constant', constant_values=0)
 
+def count_nodes(matrixInput, maxNodes):
+    for i in range(maxNodes):
+        if sum(matrixInput[:,maxNodes - 1 - i]) + sum(matrixInput[maxNodes - 1 - i,:]) > 0:
+            return maxNodes - i
+    return 0
+
+
 def computeNP(A, A_hat):
     batch_size = len(A)
     n, n_hat, p, p_hat = [],[],[],[]
     A = A.numpy().squeeze(-1)
     A_hat = A_hat.numpy().squeeze(-1)
     discretizer = Discretizer(A, A_hat)
-    A_hat = discretizer.discretize('hard_threshold')
+    A_hat = discretizer.discretize('kmeans')
 
     for a, a_hat in zip(A, A_hat):
         p_a = 0.0
@@ -699,3 +707,25 @@ def masked_normalization(batched_A_hat, batched_param):
 
     normalized = ((batched_A_hat - global_min) / global_max) * batched_mask ## need adjustment to get the scores distributed around 0.5
     return normalized # this need discretization
+
+def compute_f1(A_discretize, A_hat_discretize):
+    total_recall = 0
+    total_precision = 0
+    total_accuracy = 0
+    total_f1 = 0
+    count = 0
+    for x, y in zip(A_discretize, A_hat_discretize):
+        recall, accuracy, precision = computeScore(x, y)
+        try:
+            f1score = 2 * (precision * recall) / (precision + recall)
+            total_recall += recall
+            total_precision += precision
+            total_accuracy += accuracy
+            total_f1 += f1score
+            count += 1
+        except:
+            pass
+    print("recall: " + str(total_recall / count))
+    print("precision: " + str(total_precision / count))
+    print("accuracy: " + str(total_accuracy / count))
+    print("f1: " + str(total_f1 / count))
