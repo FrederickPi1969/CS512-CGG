@@ -32,11 +32,12 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "200" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "5000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
-    A, Attr, Param, Topol = generate_data_v2(dataArgs)
+    # A, Attr, Param, Topol = generate_data_v2(dataArgs)
+    A, Attr, Param, Topol = generate_dblp_data(dataArgs)
     # g, a, attr = unpad_data(A[0], Attr[0])
 
     ####################     Model parameters     #######################################################
@@ -361,8 +362,7 @@ if __name__ == "__main__":
             alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
             # from_numpy
             ## first get edit and D(edit(G(z)))
-            edit_attr = attr_hat
-            edit_A = transform.get_target_graph(alpha_edit, A_hat, list(Param_train[i][:,-1].type(torch.LongTensor)))  # replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
+            edit_A, edit_attr = transform.get_target_graph(alpha_edit, A_hat, list(Param_train[i][:,-1].type(torch.LongTensor)))  # replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
             # print(alpha_edit, alpha_gen)
 
             temp = edit_A.detach().cpu()
@@ -400,7 +400,7 @@ if __name__ == "__main__":
 
         loss_train.append(loss_cum / len(batched_A_hat))
 
-    debugDiscretizer(w_A_hat_train, w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
+    debugDiscretizer(w_A_hat_train, w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, masked_norm_A_hats, discretize_method="kmeans", printMatrix=True, abortPickle=True)
     
     #debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
     # drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)

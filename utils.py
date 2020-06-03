@@ -472,10 +472,18 @@ def unpad_data_v2(max_a, attr):
 
 # @title Graph Generation Methods
 def generate_graph(n, p):
-    g = random_graphs.erdos_renyi_graph(n, p, seed=None, directed=False)
+    #g = random_graphs.erdos_renyi_graph(n, p, seed=None, directed=False)
+    g = forest_fire_graph(n, p)
     a = nx.adjacency_matrix(g)
 
     return g, a
+
+def forest_fire_graph(n, p):
+    G = nx.Graph()
+    G.add_node(0)
+    for i in range(n - 1):
+        G = forest_fire(G, 1, n, p)
+    return G
 
 def generate_attr_v2(g, n, p, dataArgs):
     # We take as default that embedding dimension is same as node_num n!!!!!!
@@ -619,6 +627,96 @@ def generate_data_v2(dataArgs):
         Param[i] = [n,p,attr_param]
         Topol[i] = compute_topol(g)
     print('done')
+    return A, Attr, Param, Topol
+
+def dblp():
+    name_dict = {}
+    nodes = open('authorDict.txt', 'r').readlines()
+    count = 0
+    for node in nodes:
+        name_dict[count] = node.replace("\n", "")
+        count += 1
+
+    G = nx.null_graph()
+    edges = open('dblp_edges.txt', 'r').readlines()
+    for edge in edges:
+        temp = edge.replace("\n", "").split()
+        G.add_edge(name_dict[int(temp[0])], name_dict[int(temp[1])])
+
+    return G
+
+def sample_subgraph(G, target_size = 8, max_size = 12, start = None):
+    subgraph = nx.null_graph()
+    initial_node = start
+    if not start or start not in G.nodes():
+        initial_node = np.random.choice(list(G.nodes()))
+
+    node_queue = queue.Queue()
+    node_queue.put((initial_node, 1))
+    prob_sum = 1
+    seen = set()
+    seen.add(initial_node)
+
+    ## sample nodes
+    while not node_queue.empty():
+        new_node = node_queue.get()
+        prob_sum -= new_node[1]
+        roll = random.random()
+        if roll > new_node[1]:
+            continue
+        subgraph.add_node(new_node[0])
+        if len(subgraph) >= max_size:
+            break
+        for neighbor in set(G.neighbors(new_node[0])) - seen:
+            seen.add(neighbor)
+            select_prob = max(0, 1 - ((len(subgraph) + prob_sum) / target_size))
+            node_queue.put((neighbor, select_prob))
+            prob_sum += select_prob
+
+    ## add edges
+    for edge in set(permutations(list(subgraph.nodes()), 2)).intersection(set(G.edges())):
+        subgraph.add_edge(*edge)
+
+    subgraph = nx.convert_node_labels_to_integers(subgraph)
+    a = nx.adjacency_matrix(subgraph)
+
+    return subgraph, a
+
+def generate_dblp_data(dataArgs, load = False, save = True):
+    if load:
+        return pickle.load(open("dblp_subgraphs", 'rb'))
+
+    dblp_graph = dblp()
+
+    A = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], dataArgs["max_n_node"], 1)) ## graph data
+    Attr = np.zeros((dataArgs["n_graph"], dataArgs["max_n_node"], dataArgs["max_n_node"])) ## graph data, shape: (n_graph, n_node, n_node)
+    Param = np.zeros((dataArgs["n_graph"], 3)) ## generative parameters
+    Topol = np.zeros((dataArgs["n_graph"], 5)) ## topological properties
+
+    print("\n============= Generating Data ===========================")
+    for i in tqdm(range(0, dataArgs["n_graph"]), leave=True, position=0):
+
+        n = np.random.randint(4, dataArgs["max_n_node"])    ## generate number of nodes n between 1 and max_n_node and
+        p = np.random.uniform(dataArgs["p_range"][0], dataArgs["p_range"][1]) ## floating p from range
+
+        g, a = sample_subgraph(dblp_graph, n, n)
+        g, attr, attr_param = generate_attr_v2(g, n, p, dataArgs)
+
+        g, a, attr = sort_adjacency(g, a, attr) ## extended BOSAM sorting algorithm
+        a, attr = pad_data_v2(a, attr, dataArgs["max_n_node"]) ## pad adjacency matrix to allow less nodes than max_n_node and fill diagonal
+
+        if dataArgs["upper_triangular"]:
+            A[i] = np.triu(a.reshape(dataArgs["max_n_node"], dataArgs["max_n_node"])).reshape(dataArgs["max_n_node"], dataArgs["max_n_node"], 1)
+        else:
+            A[i] = a
+
+        Attr[i] = attr
+        Param[i] = [n,p,attr_param]
+        Topol[i] = compute_topol(g)
+    print('done')
+
+    if save:
+        pickle.dump((A, Attr, Param, Topol), open("dblp_subgraphs", 'wb'))
     return A, Attr, Param, Topol
 
 

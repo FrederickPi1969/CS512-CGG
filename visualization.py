@@ -2,6 +2,7 @@ import numpy as np
 import networkx as nx
 import pickle,os,glob
 from utils import *
+from discretize import *
 from matplotlib import pyplot as plt
 
 """

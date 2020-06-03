@@ -42,7 +42,9 @@ class GraphTransform:
             edited_graphs = [forest_fire(g, alpha, self.max_n_nodes) for g in graphs]
         else:
             edited_graphs = [modify_node_count(g, alpha, self.max_n_nodes) for g in graphs]
-        return self.calibrate_node_num(graphs_to_torch_tensor(edited_graphs, self.max_n_nodes), edited_graphs)
+        edited_attributes = [calculate_attributes(g, self.max_n_nodes) for g in edited_graphs]
+        edited_attributes = torch.from_numpy(np.asarray(edited_attributes).astype(float))
+        return self.calibrate_node_num(graphs_to_torch_tensor(edited_graphs, self.max_n_nodes), edited_graphs), edited_attributes
 
 
 class KroneckerTransform:

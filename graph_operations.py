@@ -27,7 +27,14 @@ def self_repetition(G, n = 1, linknode = 0):
         new_graph.add_edge(0, i * len(G) + linknode + 1)
     return new_graph
 
-def modify_transitivity(G, alpha = 0.0, sigmoid = False):
+def calculate_attributes(G, max_nodes):
+    nodes = G.nodes()
+    attributes = np.zeros((max_nodes, max_nodes))
+    for i in nodes:
+        attributes[i][G.degree(i)] = 1
+    return attributes
+
+def modify_transitivity(G, attr, alpha = 0.0, sigmoid = False):
     if G.number_of_nodes() < 3:
         return G
     
@@ -56,7 +63,7 @@ def modify_transitivity(G, alpha = 0.0, sigmoid = False):
             candidates = set(permutations(list(G.nodes()), r = 2)).intersection(set(G.edges()))
             G.remove_edge(*sorted([(G.degree[i] * G.degree[j], (i, j)) for (i, j) in candidates])[0][1])
             centerlist = sorted([(nx.clustering(G, j), j) for (i, j) in centerlist], reverse = True)
-
+    
     return G
 
 def modify_density(G, alpha = 0.0, sigmoid = False):

@@ -1,8 +1,12 @@
+import warnings
 import numpy as np
 import pickle, copy, random
 import math
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
+from utils import *
+
+warnings.filterwarnings('ignore')
 
 """
 A class to disscretize a batched matrix numpy array with the shape
@@ -23,6 +27,12 @@ predicted = discretizer.discretize('hard_threshold')
 ground_truth = torch.unsqueeze(torch.from_numpy(A), -1)
 predicted = torch.unsqueeze(torch.from_numpy(A_hat), -1)
 """
+def count_nodes(matrixInput, maxNodes):
+    for i in range(maxNodes):
+        if sum(matrixInput[:,maxNodes - 1 - i]) + sum(matrixInput[maxNodes - 1 - i,:]) > 0:
+            return maxNodes - i
+    return 0
+
 class Discretizer(object):
     """
     Discretizer constructor
@@ -252,7 +262,8 @@ class Discretizer(object):
         assert res.shape == self.A.shape
         return res
 
-    def kmeans_test(self):
+    def kmeans(self):
+        filler_value = 0
         res = np.zeros(self.A_hat.shape)
         batch_size = self.A_hat.shape[0]
         node_num = self.A_hat.shape[1]
@@ -260,73 +271,75 @@ class Discretizer(object):
         for i in range(batch_size):
             #print(self.A_hat[i])
             for j in range(node_num):
-                
-                row_size = len(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)])
+                row_size = len(self.A_hat[i][j][self.A_hat[i][j] != filler_value])
                 if row_size <= 1:
                     continue
-                kmeans = KMeans(n_clusters = 2).fit(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)].reshape(-1, 1))
+                kmeans = KMeans(n_clusters = 2).fit(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1))
+                #print("centers:" + str(kmeans.cluster_centers_))
                 ## 1 cluster
                 if kmeans.cluster_centers_.shape[0] == 1:
+                    print("centers:" + str(kmeans.cluster_centers_))
                     if kmeans.cluster_centers_[0] > 0.25:
-                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.ones(row_size)
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.ones(row_size)
                     else:
-                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.zeros(row_size)
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.zeros(row_size)
                 elif abs(kmeans.cluster_centers_[0] - kmeans.cluster_centers_[1]) < 0.15:
                     if (kmeans.cluster_centers_[0] + kmeans.cluster_centers_[1]) / 2 > 0.25:
-                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.ones(row_size)
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.ones(row_size)
                     else:
-                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.zeros(row_size)
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.zeros(row_size)
                 else:
                     if kmeans.cluster_centers_[0] > kmeans.cluster_centers_[1]:
-                        #print(np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)].reshape(-1, 1)))
-                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)].reshape(-1, 1))
+                        #print(np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1)))
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1))
                     else:
-                        res[i][j][self.A_hat[i][j] != np.float32(0.01)] = kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != np.float32(0.01)].reshape(-1, 1))
+                        res[i][j][self.A_hat[i][j] != filler_value] = kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1))
             #print(res[i])
         assert res.shape == self.A.shape
         return res
 
-    def kmeans(self):
+    def kmeans_test(self):
+        filler_value = 0
         res = np.zeros(self.A_hat.shape)
         batch_size = self.A_hat.shape[0]
         node_num = self.A_hat.shape[1]
-    
+        
         for i in range(batch_size):
-            graph_size = node_num
             #print(self.A_hat[i])
-            try:
-                graph_size = list(self.A_hat[i][0]).index(np.float32(0.01))
-            except:
-                pass
-
-            if graph_size == 1:
-                res[i][0][0] = 1
-                continue
-            elif graph_size == 0:
-                continue
-
-        #print(graph_size)
-            for j in range(graph_size):
-                kmeans = KMeans(n_clusters = 2).fit(self.A_hat[i][j][0:graph_size].reshape(-1, 1))
-            ## 1 cluster
+            for j in range(node_num):
+                row_size = len(self.A_hat[i][j][self.A_hat[i][j] != filler_value])
+                if row_size <= 1:
+                    continue
+                kmeans = KMeans(n_clusters = 2).fit(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1))
+                #print("centers:" + str(kmeans.cluster_centers_))
+                ## 1 cluster
                 if kmeans.cluster_centers_.shape[0] == 1:
-                    if kmeans.cluster_centers_[0] > 0.5:
-                        res[i][j][0:graph_size] = np.ones(graph_size)
+                    print("centers:" + str(kmeans.cluster_centers_))
+                    if kmeans.cluster_centers_[0] > 0.2:
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.ones(row_size)
+                        res[i][self.A_hat[i][j] != filler_value, j] = np.transpose(np.ones(row_size))
                     else:
-                        res[i][j][0:graph_size] = np.zeros(graph_size)
-                elif abs(kmeans.cluster_centers_[0] - kmeans.cluster_centers_[1]) < 0.15:
-                    if (kmeans.cluster_centers_[0] + kmeans.cluster_centers_[1]) / 2 > 0.5:
-                        res[i][j][0:graph_size] = np.ones(graph_size)
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.zeros(row_size)
+                        res[i][self.A_hat[i][j] != filler_value, j] = np.transpose(np.zeros(row_size))
+                elif abs(kmeans.cluster_centers_[0] - kmeans.cluster_centers_[1]) < 0.2:
+                    if (kmeans.cluster_centers_[0] + kmeans.cluster_centers_[1]) / 2 > 0.2:
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.ones(row_size)
+                        res[i][self.A_hat[i][j] != filler_value, j] = np.transpose(np.ones(row_size))
                     else:
-                        res[i][j][0:graph_size] = np.zeros(graph_size)
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.zeros(row_size)
+                        res[i][self.A_hat[i][j] != filler_value, j] = np.transpose(np.zeros(row_size))
                 else:
                     if kmeans.cluster_centers_[0] > kmeans.cluster_centers_[1]:
-                        res[i][j][0:graph_size] = np.ones(graph_size) - kmeans.predict(self.A_hat[i][j][0:graph_size].reshape(-1, 1))
+                        #print(np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1)))
+                        res[i][j][self.A_hat[i][j] != filler_value] = np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1))
+                        res[i][self.A_hat[i][j] != filler_value, j] = np.transpose(np.ones(row_size) - kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1)))
                     else:
-                        kmeans.predict(self.A_hat[i][j][0:graph_size].reshape(-1, 1))
-        #print(res[i])
+                        res[i][j][self.A_hat[i][j] != filler_value] = kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1))
+                        res[i][self.A_hat[i][j] != filler_value, j] = np.transpose(kmeans.predict(self.A_hat[i][j][self.A_hat[i][j] != filler_value].reshape(-1, 1)))
+            node_count = count_nodes(res[i], node_num)
+            np.fill_diagonal(res[i][0:node_count, 0:node_count], 1)
+            #print(res[i])
         assert res.shape == self.A.shape
         return res
-       
 
 
