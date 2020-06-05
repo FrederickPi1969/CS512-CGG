@@ -127,6 +127,3 @@ def forest_fire(G, alpha = 0, max_nodes = 12, burn_prob = 0.2):
         for link in links:
             G.add_edge(new_node, link)
     return G
-            
-        
-        

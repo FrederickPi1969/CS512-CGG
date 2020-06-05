@@ -23,7 +23,7 @@ if __name__ == "__main__":
     ####################     Generation parameters     #######################################################
     dataArgs = dict()
 
-    maximum_number_of_nodes_n = "12" #@param [12, 24, 30, 48]
+    maximum_number_of_nodes_n = "20" #@param [12, 24, 30, 48]
     dataArgs["max_n_node"] = int(maximum_number_of_nodes_n)
 
     range_of_linkage_probability_p = "0.0, 1.0" #@param [[0.0,1.0], [0.2,0.8], [0.5,0.5]]
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     node_attributes = "degree" #@param ["uniform", "degree", "random"]
     dataArgs["node_attr"] = node_attributes
 
-    number_of_graph_instances = "200000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
+    number_of_graph_instances = "100000" #@param [1, 100, 1000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000]
     dataArgs["n_graph"] = int(number_of_graph_instances)
 
     dataArgs["upper_triangular"] = False
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     beta_value = "20" #@param [0, 1, 2, 3, 5, 10, 20]
     trainArgs["loss_weights"] = [int(weight_graph_reconstruction_loss), int(weight_attribute_reconstruction_loss), int(beta_value)]
 
-    epochs = "50" #@param [10, 20, 50]
+    epochs = "35" #@param [10, 20, 50]
     trainArgs["epochs"] = int(epochs)
     batch_size = "512" #@param [2, 4, 8, 16, 32, 128, 512, 1024]
     trainArgs["batch_size"] = int(batch_size)
@@ -208,176 +208,176 @@ if __name__ == "__main__":
     torch.save(vae, "vae.model")
 
 
-    ################ Training Discriminator
-    discriminator = Discriminator(modelArgs, device).to(device)
-    optimizer_D = optim.Adam(discriminator.parameters(), lr = 0.001)
-
-    ## first train discriminatorm using old generated A_hat from last epoch and real A
-    print("\n\n====================================================================================================")
-    print("Training Discriminator...")
-    epochs = 10 ######################## change epoch here
-    loss_train, loss_test = [],[]
-    for e in range(epochs):
-
-        loss_cum = 0
-
-        for i in range(len(batched_z)):
-            discriminator.train()
-            fil = batched_gcn_filters_from_A_hat[i].float().to(device)
-            attr_hat = batched_Attr_hat[i].float().to(device)
-            A_hat = batched_A_hat[i].to(device)
-            A = A_train[i].to(device)
-            attr = Attr_train[i].float().to(device)
-            train_fil = A_train_mod[i].float().to(device)
-
-            optimizer_D.zero_grad()
-
-            _, preds = discriminator(attr_hat, fil)
-            labels = torch.zeros(fil.shape[0]).to(device)
-            loss_D_gen = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
-
-            _, preds = discriminator(attr, train_fil)
-            labels = torch.ones(fil.shape[0]).to(device)
-            loss_D_true = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
-            loss_D = loss_D_true + loss_D_gen
-            loss_cum += loss_D.item()
-            loss_D.backward()
-            optimizer_D.step()
-
-        loss_train.append(loss_cum / len(batched_z))
-        print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_z)))
-
-        with torch.no_grad():
-            discriminator.eval()
-            loss_cum = 0
-            discriminator.eval()
-            for i in range(len(batched_z_test)):
-                fil = batched_gcn_filters_from_A_hat_test[i].float().to(device)
-                attr_hat = batched_Attr_hat_test[i].float().to(device)
-                A_hat = batched_A_hat_test[i].to(device)
-                A = A_validate[i].to(device)
-                attr = Attr_validate[i].float().to(device)
-                test_fil = A_validate_mod[i].float().to(device)
-
-                _, preds = discriminator(attr_hat, fil)
-                labels = torch.zeros(fil.shape[0]).to(device)
-                loss_D_gen = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
-
-                _, preds = discriminator(attr, test_fil)
-                labels = torch.ones(fil.shape[0]).to(device)
-                loss_D_true = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
-                loss_D = loss_D_true + loss_D_gen
-                loss_cum += loss_D.item()
-
-            print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(batched_z_test)))
-            loss_test.append(loss_cum / len(batched_z_test))
-
-    # showLoss("Discriminator", loss_train, loss_test)
-
-
-
-    ############################# Steering GAN   ####################################
-
-    ## training tip: same batch, same alpha!
-
-
-    # w = torch.randn_like(batched_z[0][0], requires_grad=True).unsqueeze(0).to(device)
-    w = torch.tensor(np.random.normal(0.0, 0.1, [1, modelArgs["latent_dim"]]),
-                 device=device, dtype=torch.float32, requires_grad=True)
-    a_w1, a_w2, a_b1, a_b2 = torch.FloatTensor(1).uniform_().to(device).requires_grad_(), \
-                             torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
-                             torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
-                             torch.FloatTensor(1).uniform_().to(device).requires_grad_()
-    # print(w.shape, attr.shape, A.shape, fil.shape)
-
-    optimizer_w = optim.Adam([a_w1, a_w2, a_b1, a_b2, w], lr=0.001) ################################ adjust lr here!!!!!
-
-    ### Initialize generator
-    generator = Decoder_v2(modelArgs, trainArgs, device).to(device)
-
-    decoder_weight = dict(vae.decoder.named_parameters())
-    generator_weight = dict(generator.named_parameters())
-    for k in generator_weight.keys():
-        assert k in decoder_weight
-        generator_weight[k] = decoder_weight[k]
-    generator.eval()
-
-    ## then train w, fix discriminator parameters
-    print("\n\n=================================================================================")
-    print("start w training...")
-
-    discriminator.eval()
-    ## operation = "transitivity", "density", "node_count"
-    transform = GraphTransform(dataArgs["max_n_node"], operation = "forest_fire", sigmoid = True)
-    w_epochs = 25  ################################# adjust epoch here!!!
-
-    loss_train = []
-    w_A_train = []
-    w_A_hat_train = []
-    w_edit_A_hat_train = []
-    w_gen_A_hat_train = []
-    gen_A_raw_train = []
-    gen_A_max_train = []
-    gen_A_min_train = []
-    for e in range(w_epochs):
-        loss_cum = 0
-        for i in tqdm(range(len(batched_A_hat_discretized))):
-        # for i in range(len(batched_A_hat_discretized)):
-            optimizer_w.zero_grad()
-
-            fil = batched_gcn_filters_from_A_hat[i].float().to(device)
-            attr_hat = batched_Attr_hat[i].float().to(device)
-            # A_hat = batched_A_hat[i].to(device)
-            A_hat = batched_A_hat_discretized[i].to(device)
-            A = A_train[i]
-            z = batched_z[i].to(device)
-
-            ## discretize
-            # A = A_train[i].cpu().numpy().squeeze(-1)
-            # A_hat = A_hat.cpu().numpy().squeeze(-1)
-            # discretizer = Discretizer(A, A_hat)
-            # A_hat = discretizer.discretize('hard_threshold')
-            # A = torch.unsqueeze(torch.from_numpy(A), -1)
-            # A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
-
-            _, alpha_edit = transform.get_train_alpha(A_hat)  # input continuous as default, need discretization!!!
-            alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
-            # from_numpy
-            ## first get edit and D(edit(G(z)))
-            edit_attr = attr_hat
-            edit_A = transform.get_target_graph(alpha_edit, A_hat, list(Param[:,0].astype(int)))  # replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
-            temp = edit_A.detach().cpu()
-            edit_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
-            feature_edit, _ = discriminator(edit_attr.float(), edit_fil.float())
-
-
-            # Then get G(z + aw) and D(G(z + aw))
-            gen_A, gen_attr, gen_A_raw, gen_A_max, gen_A_min = generator(z + alpha_gen * w)
-            temp = gen_A.detach().cpu()
-            gen_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
-            feature_gen, preds = discriminator(gen_attr.float(), gen_fil.float())
-
-            labels = torch.ones(edit_attr.shape[0]).to(device)
-            loss_w = w_loss_func(labels, preds, feature_edit, feature_gen, alpha=10, beta=20)
-            loss_w.backward()
-            loss_cum += loss_w.item()
-            optimizer_w.step()
-            # print(w.grad)
-
-            if e + 1 == w_epochs:
-                w_A_train.append(A)
-                w_A_hat_train.append(A_hat)
-                w_edit_A_hat_train.append(edit_A)
-                w_gen_A_hat_train.append(gen_A.detach())
-                gen_A_raw_train.append(gen_A_raw.detach())
-                gen_A_max_train.append(gen_A_max.detach())
-                gen_A_min_train.append(gen_A_min.detach())
-
-        print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
-        loss_train.append(loss_cum / len(batched_A_hat))
-
-    ## debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
-    #debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
-    drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
-    drawGraphSaveFigure(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, clearImage=True)
-    showLoss("w", loss_train)
+    # ################ Training Discriminator
+    # discriminator = Discriminator(modelArgs, device).to(device)
+    # optimizer_D = optim.Adam(discriminator.parameters(), lr = 0.001)
+    #
+    # ## first train discriminatorm using old generated A_hat from last epoch and real A
+    # print("\n\n====================================================================================================")
+    # print("Training Discriminator...")
+    # epochs = 10 ######################## change epoch here
+    # loss_train, loss_test = [],[]
+    # for e in range(epochs):
+    #
+    #     loss_cum = 0
+    #
+    #     for i in range(len(batched_z)):
+    #         discriminator.train()
+    #         fil = batched_gcn_filters_from_A_hat[i].float().to(device)
+    #         attr_hat = batched_Attr_hat[i].float().to(device)
+    #         A_hat = batched_A_hat[i].to(device)
+    #         A = A_train[i].to(device)
+    #         attr = Attr_train[i].float().to(device)
+    #         train_fil = A_train_mod[i].float().to(device)
+    #
+    #         optimizer_D.zero_grad()
+    #
+    #         _, preds = discriminator(attr_hat, fil)
+    #         labels = torch.zeros(fil.shape[0]).to(device)
+    #         loss_D_gen = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
+    #
+    #         _, preds = discriminator(attr, train_fil)
+    #         labels = torch.ones(fil.shape[0]).to(device)
+    #         loss_D_true = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
+    #         loss_D = loss_D_true + loss_D_gen
+    #         loss_cum += loss_D.item()
+    #         loss_D.backward()
+    #         optimizer_D.step()
+    #
+    #     loss_train.append(loss_cum / len(batched_z))
+    #     print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_z)))
+    #
+    #     with torch.no_grad():
+    #         discriminator.eval()
+    #         loss_cum = 0
+    #         discriminator.eval()
+    #         for i in range(len(batched_z_test)):
+    #             fil = batched_gcn_filters_from_A_hat_test[i].float().to(device)
+    #             attr_hat = batched_Attr_hat_test[i].float().to(device)
+    #             A_hat = batched_A_hat_test[i].to(device)
+    #             A = A_validate[i].to(device)
+    #             attr = Attr_validate[i].float().to(device)
+    #             test_fil = A_validate_mod[i].float().to(device)
+    #
+    #             _, preds = discriminator(attr_hat, fil)
+    #             labels = torch.zeros(fil.shape[0]).to(device)
+    #             loss_D_gen = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
+    #
+    #             _, preds = discriminator(attr, test_fil)
+    #             labels = torch.ones(fil.shape[0]).to(device)
+    #             loss_D_true = binary_cross_entropy_loss_w(labels.flatten(), preds.flatten())
+    #             loss_D = loss_D_true + loss_D_gen
+    #             loss_cum += loss_D.item()
+    #
+    #         print("At Epoch {}, validation loss {} ".format(e + 1, loss_cum / len(batched_z_test)))
+    #         loss_test.append(loss_cum / len(batched_z_test))
+    #
+    # # showLoss("Discriminator", loss_train, loss_test)
+    #
+    #
+    #
+    # ############################# Steering GAN   ####################################
+    #
+    # ## training tip: same batch, same alpha!
+    #
+    #
+    # # w = torch.randn_like(batched_z[0][0], requires_grad=True).unsqueeze(0).to(device)
+    # w = torch.tensor(np.random.normal(0.0, 0.1, [1, modelArgs["latent_dim"]]),
+    #              device=device, dtype=torch.float32, requires_grad=True)
+    # a_w1, a_w2, a_b1, a_b2 = torch.FloatTensor(1).uniform_().to(device).requires_grad_(), \
+    #                          torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
+    #                          torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
+    #                          torch.FloatTensor(1).uniform_().to(device).requires_grad_()
+    # # print(w.shape, attr.shape, A.shape, fil.shape)
+    #
+    # optimizer_w = optim.Adam([a_w1, a_w2, a_b1, a_b2, w], lr=0.001) ################################ adjust lr here!!!!!
+    #
+    # ### Initialize generator
+    # generator = Decoder_v2(modelArgs, trainArgs, device).to(device)
+    #
+    # decoder_weight = dict(vae.decoder.named_parameters())
+    # generator_weight = dict(generator.named_parameters())
+    # for k in generator_weight.keys():
+    #     assert k in decoder_weight
+    #     generator_weight[k] = decoder_weight[k]
+    # generator.eval()
+    #
+    # ## then train w, fix discriminator parameters
+    # print("\n\n=================================================================================")
+    # print("start w training...")
+    #
+    # discriminator.eval()
+    # ## operation = "transitivity", "density", "node_count"
+    # transform = GraphTransform(dataArgs["max_n_node"], operation = "forest_fire", sigmoid = True)
+    # w_epochs = 25  ################################# adjust epoch here!!!
+    #
+    # loss_train = []
+    # w_A_train = []
+    # w_A_hat_train = []
+    # w_edit_A_hat_train = []
+    # w_gen_A_hat_train = []
+    # gen_A_raw_train = []
+    # gen_A_max_train = []
+    # gen_A_min_train = []
+    # for e in range(w_epochs):
+    #     loss_cum = 0
+    #     for i in tqdm(range(len(batched_A_hat_discretized))):
+    #     # for i in range(len(batched_A_hat_discretized)):
+    #         optimizer_w.zero_grad()
+    #
+    #         fil = batched_gcn_filters_from_A_hat[i].float().to(device)
+    #         attr_hat = batched_Attr_hat[i].float().to(device)
+    #         # A_hat = batched_A_hat[i].to(device)
+    #         A_hat = batched_A_hat_discretized[i].to(device)
+    #         A = A_train[i]
+    #         z = batched_z[i].to(device)
+    #
+    #         ## discretize
+    #         # A = A_train[i].cpu().numpy().squeeze(-1)
+    #         # A_hat = A_hat.cpu().numpy().squeeze(-1)
+    #         # discretizer = Discretizer(A, A_hat)
+    #         # A_hat = discretizer.discretize('hard_threshold')
+    #         # A = torch.unsqueeze(torch.from_numpy(A), -1)
+    #         # A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
+    #
+    #         _, alpha_edit = transform.get_train_alpha(A_hat)  # input continuous as default, need discretization!!!
+    #         alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
+    #         # from_numpy
+    #         ## first get edit and D(edit(G(z)))
+    #         edit_attr = attr_hat
+    #         edit_A = transform.get_target_graph(alpha_edit, A_hat, list(Param[:,0].astype(int)))  # replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
+    #         temp = edit_A.detach().cpu()
+    #         edit_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
+    #         feature_edit, _ = discriminator(edit_attr.float(), edit_fil.float())
+    #
+    #
+    #         # Then get G(z + aw) and D(G(z + aw))
+    #         gen_A, gen_attr, gen_A_raw, gen_A_max, gen_A_min = generator(z + alpha_gen * w)
+    #         temp = gen_A.detach().cpu()
+    #         gen_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
+    #         feature_gen, preds = discriminator(gen_attr.float(), gen_fil.float())
+    #
+    #         labels = torch.ones(edit_attr.shape[0]).to(device)
+    #         loss_w = w_loss_func(labels, preds, feature_edit, feature_gen, alpha=10, beta=20)
+    #         loss_w.backward()
+    #         loss_cum += loss_w.item()
+    #         optimizer_w.step()
+    #         # print(w.grad)
+    #
+    #         if e + 1 == w_epochs:
+    #             w_A_train.append(A)
+    #             w_A_hat_train.append(A_hat)
+    #             w_edit_A_hat_train.append(edit_A)
+    #             w_gen_A_hat_train.append(gen_A.detach())
+    #             gen_A_raw_train.append(gen_A_raw.detach())
+    #             gen_A_max_train.append(gen_A_max.detach())
+    #             gen_A_min_train.append(gen_A_min.detach())
+    #
+    #     print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
+    #     loss_train.append(loss_cum / len(batched_A_hat))
+    #
+    # debugDiscretizer(w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
+    # #debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
+    # # drawGraph(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train)
+    # # drawGraphSaveFigure(w_A_train, w_A_hat_train, w_edit_A_hat_train, w_gen_A_hat_train, clearImage=True)
+    # showLoss("w", loss_train)

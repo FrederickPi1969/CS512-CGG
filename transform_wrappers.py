@@ -26,7 +26,7 @@ class GraphTransform:
         elif self.sigmoid:
             alpha_val = np.random.uniform(-4, 4)
         else:
-            alpha_val = np.random.uniform(-0.2, 0.2)
+            alpha_val = np.random.uniform(0,0.25)
         return (alpha_val, alpha_val)
 
     # transform graph based on alpha

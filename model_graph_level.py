@@ -27,13 +27,13 @@ class Discriminator(nn.Module):
         o = self.gcn1(x, graph_conv_filters)
         o = self.drop1(o)
         o = self.gcn2(o, graph_conv_filters)
-        o = torch.mean(o, dim = 1) # mean
+        o = torch.max(o, dim = 1)[0] # mean
         # o = torch.max(o, dim = 1) # max pooling
-        anchor = o
         o = self.linear1(o)
         o = F.leaky_relu(o)
         o = self.linear2(o)
         o = F.leaky_relu(o)
+        anchor = o
         o = self.linear3(o)
         o = torch.sigmoid(o)
 
@@ -126,7 +126,7 @@ class Decoder(nn.Module):
         self.trainArgs = trainArgs
         self.out_channels = modelArgs["conv_filters"]
         self.kernel_size = modelArgs["kernel_size"]
-        self.latent_dim  = modelArgs["latent_dim"]
+        self.latent_dim = modelArgs["latent_dim"]
 
         # decoding A
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=self.out_channels,

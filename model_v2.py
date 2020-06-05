@@ -15,49 +15,26 @@ class Discriminator(nn.Module):
         self.node_num = modelArgs["input_shape"][0][0]
         self.attr_dim = modelArgs["input_shape"][0][1]
 
-        self.gcn1 = GCN(100, self.num_filters, self.device)  # fix output_dim = 100
+        self.gcn1 = GCN(64, self.num_filters, self.device)  # fix output_dim = 100
         self.drop1 = nn.Dropout(0.1)
-        self.gcn2 = GCN(100, self.num_filters, self.device)
+        self.gcn2 = GCN(64, self.num_filters, self.device)
 
-        # self.linear1 = nn.Linear(100, 32, bias=True)
-        # self.linear2 = nn.Linear(32, 16, bias=True)
-        # self.linear3 = nn.Linear(16, 1, bias=True)
-
-        self.anchorLinear = nn.Linear(100, 20, bias=True)
-        self.linear1 = nn.Linear(400, 256, bias=True)
-        self.linear2 = nn.Linear(256, 64, bias=True)
-        self.linear3 = nn.Linear(64, 32, bias=True)
-        self.linear4 = nn.Linear(32, 1, bias=True)
+        self.linear1 = nn.Linear(64, 32, bias=True)
+        self.linear2 = nn.Linear(32, 16, bias=True)
+        self.linear3 = nn.Linear(16, 1, bias=True)
 
     def forward(self, x, graph_conv_filters):
         o = self.gcn1(x, graph_conv_filters)
         o = self.drop1(o)
-        o = self.gcn2(o, graph_conv_filters) # (b, n ,100)
-
-        #### if use graph-level feature
-        # o = torch.mean(o, dim = 1) # mean
-        # o,_ = torch.max(o, dim = 1) # max pooling
-        # o = self.linear1(o)
-        # o = F.relu(o)
-        # o = self.linear2(o)
-        # o = F.relu(o)
-        # anchor = o
-        # o = self.drop1(o)
-        # o = self.linear3(o)
-        # o = torch.sigmoid(o)
-
-
-        #### if use node-level feature
-        o = self.anchorLinear(o)   # (b, n, 20)
+        o = self.gcn2(o, graph_conv_filters)
+        o = torch.mean(o, dim = 1) # mean
+        # o = torch.max(o, dim = 1) # max pooling
         anchor = o
-        o = torch.flatten(o, start_dim=1)  # (b, 400)
         o = self.linear1(o)
         o = F.leaky_relu(o)
         o = self.linear2(o)
         o = F.leaky_relu(o)
         o = self.linear3(o)
-        o = F.leaky_relu(o)
-        o = self.linear4(o)
         o = torch.sigmoid(o)
 
         return anchor, o
@@ -152,7 +129,7 @@ class Decoder_v2(nn.Module):
         self.device = device
         self.node_num = modelArgs["input_shape"][0][0]
         self.attr_dim = modelArgs["input_shape"][0][-1]
-        # print(modelArgs["input_shape"])
+        print(modelArgs["input_shape"])
         self.modelArgs = modelArgs
         self.trainArgs = trainArgs
         self.out_channels = modelArgs["conv_filters"]
@@ -184,11 +161,10 @@ class Decoder_v2(nn.Module):
         x = self.dense1(z)  # (b, n, hidden=64)
         # x = self.dense1_nm(x)
         x = F.relu(x)
-        A_hat_raw = x.bmm(x.transpose(-1,-2)) # (b,n,n)
-        # print("debug:",A_hat_raw.shape)
-        max_score_per_node, _ = A_hat_raw.max(dim=-1, keepdim=True)
-        min_score_per_node, _ = A_hat_raw.min(dim=-1, keepdim=True)
-        A_hat = ((A_hat_raw-min_score_per_node) / (max_score_per_node + 1e-13)).clamp(0.01, 0.99).unsqueeze(-1)
+        A_hat = x.bmm(x.transpose(-1,-2)) # (b,n,n)
+        max_score_per_node, _ = A_hat.max(dim=-1, keepdim=True)
+        A_hat = (A_hat / (max_score_per_node + 1e-13)).clamp(0.02, 0.98).unsqueeze(-1)
+        # print(A_hat)
 
         # decoding node attributes:
         y = self.linear1(z)  # (b, n, 32)
@@ -198,7 +174,7 @@ class Decoder_v2(nn.Module):
         y = self.linear3(y)  # (b, n, attr)
         attr_hat = torch.sigmoid(y)
         # attr_hat = y.view(-1, self.node_num, self.attr_dim)
-        return A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node
+        return A_hat, attr_hat
 
 
 class VAE_v2(nn.Module):
@@ -212,12 +188,14 @@ class VAE_v2(nn.Module):
 
     def forward(self, attr, graph_conv_filters):
         z_mean, z_log_var, z = self.encoder(attr, graph_conv_filters)
-        A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node = self.decoder(z)
+        A_hat, attr_hat = self.decoder(z)
 
-        return z_mean, z_log_var, z, A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node
+        return z_mean, z_log_var, z, A_hat, attr_hat
 
 def binary_cross_entropy_loss(true, pred):
-    pred = pred.clamp(0.001,0.999)
+    # pred -= 1e-8
+    # assert all(pred > 0.0)
+    # assert all(pred < 1.0)
     loss = -1 * torch.mean(true * torch.log(pred) + (1 - true) * torch.log(1 - pred))
     if loss != loss:
         print(torch.max(pred), torch.min(pred))
@@ -247,7 +225,7 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
 
     # print(torch.min(1 + z_log_var - z_mean.pow(2) - z_log_var.exp()))
     kl_loss = -0.5 * torch.sum((1 + z_log_var - z_mean.pow(2) - z_log_var.exp()), dim = -1) ######## ??????????
-    # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss, torch.mean(trainArgs["loss_weights"][2] * kl_loss))
+    print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss, torch.mean(trainArgs["loss_weights"][2] * kl_loss))
 
     # print(trainArgs["loss_weights"][0] * adj_reconstruction_loss, trainArgs["loss_weights"][1] * attr_reconstruction_loss,  trainArgs["loss_weights"][2] * kl_loss)
     loss = torch.mean(trainArgs["loss_weights"][0] * adj_reconstruction_loss + trainArgs["loss_weights"][1] * attr_reconstruction_loss +  trainArgs["loss_weights"][2] * kl_loss)
@@ -255,7 +233,7 @@ def loss_func(y, y_hat, z_mean, z_log_var, trainArgs, modelArgs):
     return loss
 
 
-def w_loss_func(y, y_hat,t feature_true, feature_fake, alpha, beta):
+def w_loss_func(y, y_hat, feature_true, feature_fake, alpha, beta):
     mse = nn.MSELoss(reduction="mean")
     entropy_loss = binary_cross_entropy_loss_w(y.flatten(), y_hat.flatten())   ## modify w so as to maximize the probability of D being wrong!
     feature_similarity_loss = mse(feature_true, feature_fake)
@@ -263,12 +241,4 @@ def w_loss_func(y, y_hat,t feature_true, feature_fake, alpha, beta):
     return feature_similarity_loss
 
 
-def w_loss_without_discriminator(y, y_hat, trainArgs, modelArgs):
-    A, A_hat = y[0], y_hat[0]
-    attr, attr_hat = y[1], y_hat[1]
-    # mse = nn.MSELoss(reduction="mean")
-    # attr_reconstruction_loss = mse(attr.flatten(), attr_hat.flatten()) * modelArgs["input_shape"][0][0]
 
-    adj_reconstruction_loss = binary_cross_entropy_loss(A.flatten(), A_hat.flatten()) * (modelArgs["input_shape"][1][0] * modelArgs["input_shape"][1][1])
-    loss = torch.mean(trainArgs["loss_weights"][0] * adj_reconstruction_loss)
-    return loss

@@ -322,6 +322,34 @@ def computeScore(a, a_hat):
 		recall += true_positive / (true_positive + false_negative)
 	return recall,accuracy,precision
 
+"""
+Input [batch_A 1, batch_A ...], and [batch_A_hat 1, batch_A_hat 2, ...] and return the total average score. 
+"""
+def compute_score_batched(batches_A, batches_A_hat):
+
+	batch_size, n, n, _ = batches_A[0].shape
+	batches_A = torch.cat(batches_A, dim = 0).squeeze(-1)
+	batches_A_hat = torch.cat(batches_A_hat, dim = 0).squeeze(-1)
+
+	recall,accuracy,precision = 0,0,0
+	for i,a in enumerate(batches_A):
+		a_hat = batches_A_hat[i]
+		recall_result,accuracy_result,precision_result = computeScore(a.numpy(), a_hat.numpy())
+		recall += recall_result
+		accuracy += accuracy_result
+		precision += precision_result
+
+	accuracy /= len(batches_A)
+	precision /= len(batches_A)
+	recall /= len(batches_A)
+	f1_score = (2*precision*recall) / (precision+recall)
+	# print("accuracy:", accuracy)
+	# print("precision:", precision)
+	# print("recall:", recall)
+	# print("f1 score:", f1_score)
+	return accuracy, precision, recall, f1_score
+
+
 
 
 """
@@ -389,14 +417,14 @@ def debugDiscretizer(original_A, gen_edit_A_hat_train, gen_A_raw_train, gen_A_ma
 
 		# discretizer = Discretizer(gen_A_normal, gen_A_normal)
 		discretizer = Discretizer(masked_normalized_A, masked_normalized_A) ## Changed this to masked_normalized_A_hat
-		gen_A_discretize = discretizer.discretize(discretize_method)
+		gen_A_discretize = discretizer.discretize(discretize_method,threshold=0.3)
 		dump_list[-1] = gen_A_discretize
 
 		# store the pickle
-		for i,file in enumerate(file_list):
-			f = open('pickles/'+file+'.pickle', 'wb')
-			pickle.dump(dump_list[i], f)
-			f.close()
+		# for i,file in enumerate(file_list):
+		# 	f = open('pickles/'+file+'.pickle', 'wb')
+		# 	pickle.dump(dump_list[i], f)
+		# 	f.close()
 
 	recall,accuracy,precision = 0,0,0
 	for i,a in enumerate(gen_A_discretize):
@@ -441,7 +469,7 @@ def debugDiscretizer(original_A, gen_edit_A_hat_train, gen_A_raw_train, gen_A_ma
 		print("precision:", precision)
 		print("recall:", recall)
 		print("f1 score:", f1_score)
-
+	return  gen_A_discretize
 
 
 """
