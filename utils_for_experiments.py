@@ -32,7 +32,7 @@ def topological_measure(batched_A):
         de,di,cl,ed,avd = topol_one_graph(As[i])
         density += de
         diameter += di
-        cl += cluster_coef
+        cluster_coef += cl
         edges += ed
         avg_degree += avd
 
