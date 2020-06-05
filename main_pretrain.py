@@ -427,7 +427,9 @@ if __name__ == "__main__":
                 z = batched_z_test[i].to(device)
 
                 _, alpha_edit = transform.get_train_alpha(A_hat)
-                alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
+                # alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
+                sign = -1 if alpha_edit < 0 else 1
+                alpha_gen = sign * torch.log(torch.abs(torch.tensor(alpha_edit)))
 
                 edit_attr = attr_hat
                 edit_A = transform.get_target_graph(alpha_edit, A_hat, list(Param_test[i][:,-1].type(torch.LongTensor)))
@@ -440,6 +442,13 @@ if __name__ == "__main__":
             if loss_test < best_test_loss:
                 print(f"Best test loss {best_test_loss}, this round {loss_test}")
                 best_test_loss =loss_test
+
+                best_w = w.detach().cpu()
+                best_aw1 = a_w1.detach().cpu()
+                best_aw2 = a_w2.detach().cpu()
+                best_ab1 = a_b1.detach().cpu()
+                best_ab2 = a_b2.detach().cpu()
+
                 count = 0
 
             else:
