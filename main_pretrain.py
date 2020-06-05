@@ -372,9 +372,11 @@ if __name__ == "__main__":
             # A = torch.unsqueeze(torch.from_numpy(A), -1)
             # A_hat = torch.unsqueeze(torch.from_numpy(A_hat), -1)
 
-            _, alpha_edit = transform.get_train_alpha(A_hat)  # input continuous as default, need discretization!!!
-            alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
-            # from_numpy
+            _, alpha_edit = transform.get_train_alpha(A_hat)
+            # alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
+            sign = -1 if alpha_edit < 0 else 1
+            alpha_gen = sign * torch.log(torch.abs(torch.tensor(alpha_edit)))
+
             ## first get edit and D(edit(G(z)))
             edit_attr = attr_hat
             edit_A = transform.get_target_graph(alpha_edit, A_hat, list(Param_train[i][:,-1].type(torch.LongTensor)))  # replace this with the edit(G(z)) attr & filter! Expect do all graphs in batch in one step!!
@@ -475,7 +477,9 @@ if __name__ == "__main__":
             #     z = batched_z_test[i].to(device)
             #
             #     _, alpha_edit = transform.get_train_alpha(A_hat)
-            #     alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
+            #     # alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
+            #     sign = -1 if alpha_edit < 0 else 1
+            #     alpha_gen = sign * torch.log(torch.abs(torch.tensor(alpha_edit)))
             #
             #     edit_attr = attr_hat
             #     edit_A = transform.get_target_graph(alpha_edit, A_hat, list(Param_test[i][:,-1].type(torch.LongTensor)))
