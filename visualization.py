@@ -378,7 +378,7 @@ command:
 	python3 main.py > somePath/steering_gan_log.txt
 """
 def debugDiscretizer(original_A, gen_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train,
-					 masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=False, computePerformance=True):
+					 masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=False, computePerformance=True, threshold=0.45):
 	# check pickle
 	gen_A, edit_A, gen_A_max, gen_A_min, gen_A_normal,\
 	gen_A_discretize, masked_normalized_A, original_As = [], [], [], [], [], None,[],[]
@@ -417,7 +417,7 @@ def debugDiscretizer(original_A, gen_edit_A_hat_train, gen_A_raw_train, gen_A_ma
 
 		# discretizer = Discretizer(gen_A_normal, gen_A_normal)
 		discretizer = Discretizer(masked_normalized_A, masked_normalized_A) ## Changed this to masked_normalized_A_hat
-		gen_A_discretize = discretizer.discretize(discretize_method,threshold=0.3)
+		gen_A_discretize = discretizer.discretize(discretize_method,threshold=threshold)
 		dump_list[-1] = gen_A_discretize
 
 		# store the pickle

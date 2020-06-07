@@ -298,17 +298,19 @@ if __name__ == "__main__":
     ############################# Steering GAN   ####################################
 
     ## training tip: same batch, same alpha!
-
-    # w = torch.randn_like(batched_z[0][0], requires_grad=True).unsqueeze(0).to(device)
-    w = torch.tensor(np.random.normal(0.0, 0.1, [1, modelArgs["latent_dim"]]),
+    # w = torch.tensor(np.random.normal(0.0, 0.1, [1, modelArgs["latent_dim"]]),
+    #              device=device, dtype=torch.float32, requires_grad=True)
+    w = torch.tensor(np.random.normal(0.0, 0.1, [dataArgs["max_n_node"], modelArgs["latent_dim"]]),
                  device=device, dtype=torch.float32, requires_grad=True)
-    a_w1, a_w2, a_b1, a_b2 = torch.FloatTensor(1).uniform_().to(device).requires_grad_(), \
-                             torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
-                             torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
-                             torch.FloatTensor(1).uniform_().to(device).requires_grad_()
-    # print(w.shape, attr.shape, A.shape, fil.shape)
 
-    optimizer_w = optim.Adam([a_w1, a_w2, a_b1, a_b2, w], lr=0.001) ################################ adjust lr here!!!!!
+    # a_w1, a_w2, a_b1, a_b2 = torch.FloatTensor(1).uniform_().to(device).requires_grad_(), \
+    #                          torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
+    #                          torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
+    #                          torch.FloatTensor(1).uniform_().to(device).requires_grad_()
+    # # print(w.shape, attr.shape, A.shape, fil.shape)
+
+    # optimizer_w = optim.Adam([a_w1, a_w2, a_b1, a_b2, w], lr=0.001) ################################ adjust lr here!!!!!
+    optimizer_w = optim.Adam([w], lr=0.001) ################################ adjust lr here!!!!!
 
     ### Initialize generator
     generator = Decoder_v2(modelArgs, trainArgs, device).to(device)
@@ -446,10 +448,10 @@ if __name__ == "__main__":
                 best_test_loss =loss_test
 
                 best_w = w.detach().cpu()
-                best_aw1 = a_w1.detach().cpu()
-                best_aw2 = a_w2.detach().cpu()
-                best_ab1 = a_b1.detach().cpu()
-                best_ab2 = a_b2.detach().cpu()
+                # best_aw1 = a_w1.detach().cpu()
+                # best_aw2 = a_w2.detach().cpu()
+                # best_ab1 = a_b1.detach().cpu()
+                # best_ab2 = a_b2.detach().cpu()
 
                 count = 0
 
@@ -518,10 +520,10 @@ if __name__ == "__main__":
 
 
     torch.save(best_w, "w_density.pt")
-    torch.save(best_aw1, "a_w1_density.pt")
-    torch.save(best_aw2, "a_w2_density.pt")
-    torch.save(best_ab1, "a_b1_density.pt")
-    torch.save(best_ab2, "a_b2_density.pt")
+    # torch.save(best_aw1, "a_w1_density.pt")
+    # torch.save(best_aw2, "a_w2_density.pt")
+    # torch.save(best_ab1, "a_b1_density.pt")
+    # torch.save(best_ab2, "a_b2_density.pt")
 
     # debugDiscretizer(w_A_hat_train, w_edit_A_hat_train, gen_A_raw_train, gen_A_max_train, gen_A_min_train, w_gen_A_hat_train, masked_norm_A_hats, discretize_method="hard_threshold", printMatrix=True, abortPickle=True)
     #debugDecoder(w_edit_A_hat_train, [], w_gen_A_hat_train, [], discretize_method="hard_threshold", printMatrix=True)
