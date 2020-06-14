@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import sys
 import torch.nn.functional as F
+from copy import deepcopy
 import torch.optim as optim
 # from transform_wrappers_multiprocessing import *
 from transform_wrappers import *
@@ -300,8 +301,8 @@ if __name__ == "__main__":
     ## training tip: same batch, same alpha!
     # w = torch.tensor(np.random.normal(0.0, 0.1, [1, modelArgs["latent_dim"]]),
     #              device=device, dtype=torch.float32, requires_grad=True)
-    w = torch.tensor(np.random.normal(0.0, 0.1, [dataArgs["max_n_node"], modelArgs["latent_dim"]]),
-                 device=device, dtype=torch.float32, requires_grad=True)
+    # w = torch.tensor(np.random.normal(0.0, 0.1, [dataArgs["max_n_node"], modelArgs["latent_dim"]]),
+    #              device=device, dtype=torch.float32, requires_grad=True)
 
     # a_w1, a_w2, a_b1, a_b2 = torch.FloatTensor(1).uniform_().to(device).requires_grad_(), \
     #                          torch.FloatTensor(1).uniform_().to(device).requires_grad_(),\
@@ -310,21 +311,21 @@ if __name__ == "__main__":
     # # print(w.shape, attr.shape, A.shape, fil.shape)
 
     # optimizer_w = optim.Adam([a_w1, a_w2, a_b1, a_b2, w], lr=0.001) ################################ adjust lr here!!!!!
-    optimizer_w = optim.Adam([w], lr=0.001) ################################ adjust lr here!!!!!
+    # optimizer_w = optim.Adam([w], lr=0.001) ################################ adjust lr here!!!!!
 
     ### Initialize generator
-    generator = Decoder_v2(modelArgs, trainArgs, device).to(device)
+    generator = Decoder_attention(modelArgs, trainArgs, device).to(device)
 
     decoder_weight = dict(vae.decoder.named_parameters())
     generator_weight = dict(generator.named_parameters())
-    for k in generator_weight.keys():
-        assert k in decoder_weight
-        generator_weight[k] = decoder_weight[k]
-    generator.eval()
 
+    for k in decoder_weight.keys():
+        generator_weight[k] = decoder_weight[k]
+
+    optimizer_steer = optim.Adam(generator.parameters(), lr=0.001)
     ## then train w, fix discriminator parameters
     print("\n\n=================================================================================")
-    print("start w training...")
+    print("start training...")
 
     # discriminator.eval()
     ## operation = "transitivity", "density", "node_count"
@@ -354,10 +355,12 @@ if __name__ == "__main__":
 
 
     for e in range(w_epochs):
+
+        ###### Train
+        generator.train()
         loss_cum = 0
         for i in tqdm(range(len(batched_A_hat_discretized))):
-        # for i in range(len(batched_A_hat_discretized)):
-            optimizer_w.zero_grad()
+            optimizer_steer.zero_grad()
 
             fil = batched_gcn_filters_from_A_hat[i].float().to(device)
             attr_hat = batched_Attr_hat[i].float().to(device)
@@ -365,6 +368,7 @@ if __name__ == "__main__":
             A_hat = batched_A_hat_discretized[i].to(device)
             A = A_train[i]
             z = batched_z[i].to(device)
+            hard_mask = (1 - A_hat).squeeze(-1)
 
             ## discretize
             # A = A_train[i].cpu().numpy().squeeze(-1)
@@ -376,8 +380,8 @@ if __name__ == "__main__":
 
             _, alpha_edit = transform.get_train_alpha(A_hat)
             # alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
-            sign = -1 if alpha_edit < 0 else 1
-            alpha_gen = sign * torch.log(torch.abs(torch.tensor(alpha_edit)))
+            # sign = -1 if alpha_edit < 0 else 1
+            alpha_gen = -1 * torch.log(torch.abs(torch.tensor(alpha_edit)))
 
             ## first get edit and D(edit(G(z)))
             edit_attr = attr_hat
@@ -390,7 +394,9 @@ if __name__ == "__main__":
 
 
             # Then get G(z + aw) and D(G(z + aw))
-            gen_A, gen_attr, gen_A_raw, gen_A_max, gen_A_min = generator(z + alpha_gen * w)
+            # gen_A, gen_attr, gen_A_raw, gen_A_max, gen_A_min = generator(z + alpha_gen * w)
+            gen_A, gen_attr, gen_A_raw, gen_A_max, gen_A_min = generator(alpha_gen, hard_mask, z)
+
             # temp = gen_A.detach().cpu()
             # gen_fil = preprocess_adj_tensor_with_identity(torch.squeeze(temp, -1), symmetric = False).to(device)
             # feature_gen, preds = discriminator(gen_attr.float(), gen_fil.float())
@@ -401,7 +407,7 @@ if __name__ == "__main__":
             loss_w = w_loss_without_discriminator((edit_A, edit_attr), (gen_A, gen_attr), trainArgs, modelArgs)
             loss_w.backward()
             loss_cum += loss_w.item()
-            optimizer_w.step()
+            optimizer_steer.step()
             # print(w.grad)
 
 
@@ -419,7 +425,7 @@ if __name__ == "__main__":
         loss_train.append(loss_cum / len(batched_A_hat))
         print("At Epoch {}, training loss {} ".format(e + 1, loss_cum / len(batched_A_hat)))
 
-        #### Testing & Early Stop ###
+        ############# Testing & Early Stop ###
         if EARLY_STOP:
             loss_test = 0
             ############# using test loss as early stop criterion
@@ -429,25 +435,30 @@ if __name__ == "__main__":
                 A_hat = batched_A_hat_discretized_test[i].to(device)
                 A = A_test[i]
                 z = batched_z_test[i].to(device)
+                hard_mask = (1 - A_hat).squeeze(-1)
 
                 _, alpha_edit = transform.get_train_alpha(A_hat)
                 # alpha_gen = a_w2 * F.relu(a_w1 * alpha_edit + a_b1) + a_b2
-                sign = -1 if alpha_edit < 0 else 1
-                alpha_gen = sign * torch.log(torch.abs(torch.tensor(alpha_edit)))
+                # sign = 1 if alpha_edit < 0 else -1
+                alpha_gen = -1 * torch.log(torch.abs(torch.tensor(alpha_edit)))
 
                 edit_attr = attr_hat
                 edit_A = transform.get_target_graph(alpha_edit, A_hat, list(Param_test[i][:,-1].type(torch.LongTensor)))
 
 
-                gen_A, gen_attr, gen_A_raw, gen_A_max, gen_A_min = generator(z + alpha_gen * w)
+                gen_A, gen_attr, gen_A_raw, gen_A_max, gen_A_min = generator(alpha_gen, hard_mask, z)
+
+
                 loss_w_test = w_loss_without_discriminator((edit_A, edit_attr), (gen_A, gen_attr), trainArgs, modelArgs)
                 loss_test += loss_w_test.item()
 
             if loss_test < best_test_loss:
                 print(f"Best test loss {best_test_loss}, this round {loss_test}")
-                best_test_loss =loss_test
+                best_test_loss = loss_test
 
-                best_w = w.detach().cpu()
+                torch.save(generator, "generator.model")
+
+                # best_w = w.detach().cpu()
                 # best_aw1 = a_w1.detach().cpu()
                 # best_aw2 = a_w2.detach().cpu()
                 # best_ab1 = a_b1.detach().cpu()

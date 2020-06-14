@@ -5,6 +5,7 @@ import torch
 import scipy.sparse as sp
 import torch.nn as nn
 import numpy as np
+from discretize import *
 from tqdm import tqdm
 
 class Discriminator(nn.Module):
@@ -199,6 +200,86 @@ class Decoder_v2(nn.Module):
         attr_hat = torch.sigmoid(y)
         # attr_hat = y.view(-1, self.node_num, self.attr_dim)
         return A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node
+
+
+class Decoder_attention(nn.Module):
+    def __init__(self, modelArgs, trainArgs, device):
+        super(Decoder_attention, self).__init__()
+        self.device = device
+        self.node_num = modelArgs["input_shape"][0][0]
+        self.attr_dim = modelArgs["input_shape"][0][-1]
+        # print(modelArgs["input_shape"])
+        self.modelArgs = modelArgs
+        self.trainArgs = trainArgs
+        self.out_channels = modelArgs["conv_filters"]
+        self.kernel_size = modelArgs["kernel_size"]
+        self.latent_dim = modelArgs["latent_dim"]
+
+        # decoding A
+        # Input Z shape: (b, n, z_size) !
+        self.hidden_shape = 64  # adjustable
+        self.dense1 = nn.Linear(self.latent_dim, self.hidden_shape)
+        self.dense_atten = nn.Linear(self.latent_dim, self.hidden_shape)
+        self.dense_adj = nn.Linear(self.node_num, self.node_num)
+        # self.dense1_nm = nn.BatchNorm1d(self.conv2_w * self.conv2_w * self.out_channels * 4)
+
+        # decoding attribute
+        self.linear1 = nn.Linear(self.latent_dim, 32)
+        self.linear2 = nn.Linear(32, 64)
+        self.linear3 = nn.Linear(64, self.attr_dim)
+
+    def compute_shape_after_conv(self, w, k, s, p):
+        return (w + p[0] + p[1] - k) // s + 1
+
+    def compute_same_padding_size(self, kernel_size):
+        two_p = kernel_size - 1
+        p_left = int(two_p / 2)
+        p_right = p_left if p_left == two_p / 2 else p_left + 1
+        return (p_left, p_right, p_left, p_right)
+
+    def forward(self, alpha_gen, hard_mask, z):
+        #### decoding A with dot product:
+        x = self.dense1(z)  # (b, n, hidden=64)
+        # x = self.dense1_nm(x)
+        x = F.relu(x)
+        A_hat_raw = x.bmm(x.transpose(-1,-2)) # (b,n,n)
+
+        max_score_per_node, _ = A_hat_raw.max(dim=-1, keepdim=True)
+        min_score_per_node, _ = A_hat_raw.min(dim=-1, keepdim=True)
+        A_hat = ((A_hat_raw-min_score_per_node) / (max_score_per_node + 1e-13)).clamp(0.01, 0.99).unsqueeze(-1)
+
+        # print("debug:",A_hat_raw.shape)
+        # soft_mask = 1.0 - A_hat.squeeze(-1)
+
+        q = self.dense_atten(z)
+        Atten = q.bmm(q.transpose(-1, -2))
+
+        adjustment = alpha_gen * F.relu(self.dense_adj(Atten * hard_mask))
+        A_hat_raw = A_hat_raw + adjustment # (b,n,n)
+
+        max_score_per_node, _ = A_hat_raw.max(dim=-1, keepdim=True)
+        min_score_per_node, _ = A_hat_raw.min(dim=-1, keepdim=True)
+        A_hat = ((A_hat_raw-min_score_per_node) / (max_score_per_node + 1e-13)).clamp(0.01, 0.99).unsqueeze(-1)
+
+
+        #### decoding node attributes:
+        y = self.linear1(z)  # (b, n, 32)
+        y = F.relu(y)
+        y = self.linear2(y)  # (b, n, 64)
+        y = F.relu(y)
+        y = self.linear3(y)  # (b, n, attr)
+        attr_hat = torch.sigmoid(y)
+        # attr_hat = y.view(-1, self.node_num, self.attr_dim)
+        return A_hat, attr_hat, A_hat_raw, max_score_per_node, min_score_per_node
+
+
+
+
+
+
+
+
+
 
 
 class VAE_v2(nn.Module):
